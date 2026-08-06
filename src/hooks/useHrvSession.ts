@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useHeartRateMonitor } from '@/hooks/useHeartRateMonitor'
+import { useHeartRateMonitor, type HeartRateReading } from '@/hooks/useHeartRateMonitor'
 import { computeCoherence } from '@/lib/hrvCoherence'
 import { BpmSmoother } from '@/lib/bpmSmoother'
 import { IbiArtifactFilter } from '@/lib/ibiArtifactFilter'
@@ -36,6 +36,11 @@ export function useHrvSession() {
   const [smoothedBpm, setSmoothedBpm] = useState<number | null>(null)
   const [coherenceLive, setCoherenceLive] = useState<number | null>(null)
   const [coherenceHistory, setCoherenceHistory] = useState<CoherencePoint[]>([])
+  // True the instant a "Sensor Contact Detected" = 0 packet arrives (finger
+  // lifted off the sensor) — distinct from hr.state disconnecting (BLE link
+  // itself dropping). The device stays connected the whole time; this is a
+  // milder, much more common condition (repositioning a finger mid-session).
+  const [contactLost, setContactLost] = useState(false)
 
   const smootherRef = useRef<BpmSmoother | null>(null)
   const artifactFilterRef = useRef<IbiArtifactFilter | null>(null)
@@ -51,7 +56,31 @@ export function useHrvSession() {
   // value instead of a stale closure.
   const sessionActiveRef = useRef(false)
 
-  const handleReading = useCallback((reading: { bpm: number; rrIntervalsMs: number[] }) => {
+  const handleReading = useCallback((reading: HeartRateReading) => {
+    // Firmware now sends an immediate 2-byte packet (flags=0x04, HR=0) the
+    // instant a finger lifts off the sensor, instead of going silent — react
+    // to that explicitly rather than letting bpm=0 fall through and get
+    // silently dropped by the physio bounds check below (which is what used
+    // to make the live display freeze at its last value with no time limit).
+    // 'not_supported' devices (feature bit off) are NOT gated here — only an
+    // explicit, confirmed "no contact" reading is.
+    if (reading.sensorContact === 'not_detected') {
+      setContactLost(true)
+      setSmoothedBpm(null)
+      setCoherenceLive(null)
+      // Clear the live rolling window and smoother state so the first real
+      // beats after contact resumes don't get averaged/smoothed together
+      // with stale pre-loss values spanning the gap.
+      liveRrRef.current = []
+      smootherRef.current = new BpmSmoother()
+      // The next IBI after contact resumes must not be compared against the
+      // last IBI from before the gap — that "interval" spans however long
+      // the finger was off, not a real beat-to-beat timing.
+      artifactFilterRef.current?.reset()
+      return
+    }
+    setContactLost(false)
+
     if (!smootherRef.current) smootherRef.current = new BpmSmoother()
     // Hard physiological sanity bound — outside this a raw BLE reading is a
     // sensor artifact (motion, poor contact), never a real beat.
@@ -104,6 +133,7 @@ export function useHrvSession() {
     setSmoothedBpm(null)
     setCoherenceLive(null)
     setCoherenceHistory([])
+    setContactLost(false)
     setSessionActive(true)
   }, [])
 
@@ -143,6 +173,7 @@ export function useHrvSession() {
     ...hr,
     smoothedBpm,
     coherenceLive,
+    contactLost,
     sessionActive,
     startSession,
     endSession,

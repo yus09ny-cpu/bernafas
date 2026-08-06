@@ -45,6 +45,7 @@ export default function App() {
         bpm={hrv.smoothedBpm}
         coherenceLive={hrv.coherenceLive}
         isDeviceConnected={hrv.state === 'connected'}
+        contactLost={hrv.contactLost}
         onEnd={endSession}
       />
     )

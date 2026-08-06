@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { X } from 'lucide-react'
+import { X, Hand } from 'lucide-react'
 import BreathOrb from '@/components/BreathOrb'
 import CoherenceRing from '@/components/CoherenceRing'
 import { useBreathingPacer } from '@/hooks/useBreathingPacer'
@@ -14,6 +14,11 @@ interface BreathingScreenProps {
   bpm: number | null
   coherenceLive: number | null
   isDeviceConnected: boolean
+  // True while the sensor is connected but reports no finger contact —
+  // distinct from isDeviceConnected being false (no BLE link at all). The
+  // orb keeps breathing regardless (repositioning a finger is no reason to
+  // interrupt the calming visual); only the HRV-specific readouts blank out.
+  contactLost: boolean
   onEnd: (breathCount: number) => void
 }
 
@@ -25,7 +30,7 @@ const PHASE_LABEL: Record<'in' | 'out', string> = {
   out: 'Hembus Nafas',
 }
 
-export default function BreathingScreen({ bpm, coherenceLive, isDeviceConnected, onEnd }: BreathingScreenProps) {
+export default function BreathingScreen({ bpm, coherenceLive, isDeviceConnected, contactLost, onEnd }: BreathingScreenProps) {
   const [running] = useState(true)
   const { phase, cycleCount } = useBreathingPacer({ inhaleMs: INHALE_MS, exhaleMs: EXHALE_MS, running })
   const phaseDurationMs = phase === 'in' ? INHALE_MS : EXHALE_MS
@@ -37,9 +42,15 @@ export default function BreathingScreen({ bpm, coherenceLive, isDeviceConnected,
     >
       <div className="flex w-full items-center justify-between">
         {isDeviceConnected ? (
-          <span className="rounded-full bg-white/70 px-3 py-1 text-xs font-medium text-[var(--color-primary-dark)]">
-            {bpm !== null ? `${bpm} bpm` : 'menunggu bacaan...'}
-          </span>
+          contactLost ? (
+            <span className="flex items-center gap-1.5 rounded-full bg-[var(--color-warm)]/20 px-3 py-1 text-xs font-medium text-[var(--color-warm)]">
+              <Hand size={12} /> letak jari semula
+            </span>
+          ) : (
+            <span className="rounded-full bg-white/70 px-3 py-1 text-xs font-medium text-[var(--color-primary-dark)]">
+              {bpm !== null ? `${bpm} bpm` : 'menunggu bacaan...'}
+            </span>
+          )
         ) : (
           <span />
         )}
@@ -62,7 +73,12 @@ export default function BreathingScreen({ bpm, coherenceLive, isDeviceConnected,
         </div>
 
         {isDeviceConnected && (
-          coherenceLive !== null ? (
+          contactLost ? (
+            <div className="flex flex-col items-center gap-1">
+              <Hand size={22} className="text-[var(--color-warm)]" />
+              <span className="text-xs text-[var(--color-text-muted)]">Tiada bacaan — letak jari pada sensor</span>
+            </div>
+          ) : coherenceLive !== null ? (
             <CoherenceRing value={coherenceLive} size={88} label="SKOR LIVE" />
           ) : (
             <span className="text-xs text-[var(--color-text-muted)]">Mengumpul bacaan HRV...</span>
