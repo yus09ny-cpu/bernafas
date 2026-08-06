@@ -1,0 +1,65 @@
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&display=swap');
+@import "tailwindcss";
+
+:root {
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+}
+
+/* ─── Bernafas palette ────────────────────────────────────────────────────
+   Secular wellness/clinical mood — pastel blue → mint gradient, single warm
+   coral accent reserved for calls-to-action only. Deliberately unlike Audit
+   Jiwa's dark/gold/serif theme (see project brief). */
+@theme {
+  --color-bg-top: #eaf6f4;
+  --color-bg-bottom: #e6f0fb;
+  --color-surface: #ffffff;
+  --color-surface-muted: #f3f8f7;
+  --color-primary: #3e9c9c;
+  --color-primary-light: #6fc3bd;
+  --color-primary-dark: #2c7a7a;
+  --color-accent: #6fa8dc;
+  --color-warm: #f4a785;
+  --color-text: #1e293b;
+  --color-text-muted: #64748b;
+  --color-border: #dce8e6;
+
+  --font-sans: 'Manrope', system-ui, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html, body, #root {
+  height: 100%;
+  height: 100dvh;
+}
+
+html, body {
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+}
+
+body {
+  background: linear-gradient(180deg, #eaf6f4 0%, #e6f0fb 100%);
+  color: #1e293b;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overscroll-behavior: none;
+}
+
+/* Prevent input zoom on iOS — minimum 16px */
+input, textarea, select {
+  font-size: max(16px, 1em);
+}
+
+button, a {
+  touch-action: manipulation;
+  cursor: pointer;
+}
