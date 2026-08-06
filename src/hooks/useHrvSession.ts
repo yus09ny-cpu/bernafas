@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useHeartRateMonitor } from '@/hooks/useHeartRateMonitor'
 import { computeCoherence } from '@/lib/hrvCoherence'
 import { BpmSmoother } from '@/lib/bpmSmoother'
+import { IbiArtifactFilter } from '@/lib/ibiArtifactFilter'
 
 // How many real R-R intervals feed the *live* on-screen coherence ring.
 // Short/responsive on purpose (so the number moves with the breath the user
@@ -37,6 +38,7 @@ export function useHrvSession() {
   const [coherenceHistory, setCoherenceHistory] = useState<CoherencePoint[]>([])
 
   const smootherRef = useRef<BpmSmoother | null>(null)
+  const artifactFilterRef = useRef<IbiArtifactFilter | null>(null)
   const liveRrRef = useRef<number[]>([])
   const sessionRrRef = useRef<number[]>([])
   const bpmSamplesRef = useRef<number[]>([])
@@ -64,10 +66,18 @@ export function useHrvSession() {
     if (startBpmRef.current === null) startBpmRef.current = reading.bpm
 
     if (reading.rrIntervalsMs.length) {
+      if (!artifactFilterRef.current) artifactFilterRef.current = new IbiArtifactFilter()
       for (const rr of reading.rrIntervalsMs) {
-        liveRrRef.current.push(rr)
+        // Reject beat-detection jitter before it ever reaches RMSSD/coherence
+        // math — see ibiArtifactFilter.ts. Rejected samples are skipped
+        // entirely (not pushed, not counted), but still advance nothing —
+        // the filter's own "last accepted" baseline is what the *next*
+        // incoming IBI compares against, not this rejected one.
+        const accepted = artifactFilterRef.current.accept(rr)
+        if (accepted === null) continue
+        liveRrRef.current.push(accepted)
         if (liveRrRef.current.length > LIVE_WINDOW_SIZE) liveRrRef.current.shift()
-        sessionRrRef.current.push(rr)
+        sessionRrRef.current.push(accepted)
       }
       if (liveRrRef.current.length >= 3) {
         setCoherenceLive(computeCoherence(liveRrRef.current))
@@ -83,6 +93,7 @@ export function useHrvSession() {
 
   const startSession = useCallback(() => {
     smootherRef.current = new BpmSmoother()
+    artifactFilterRef.current = new IbiArtifactFilter()
     liveRrRef.current = []
     sessionRrRef.current = []
     bpmSamplesRef.current = []
