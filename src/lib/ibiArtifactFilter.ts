@@ -22,6 +22,15 @@
 // Re-tune this constant (not the class logic) if real sessions show it's
 // too strict (rejecting genuine fast heart-rate changes) or too loose
 // (still letting jitter spikes through).
+//
+// 2026-08: production telemetry confirmed this threshold as the actual
+// bottleneck behind the segmented ring staying mostly gray — rejections
+// (110+) vastly outnumbering accepted samples (single digits/dozens in
+// history.length) over a multi-minute session. TEMP DEBUG logging added
+// below (reportRejectedBeat) to see the real rejected-vs-accepted IBI
+// pairs before retuning this number — see ibiRejectionDebugBus.ts.
+
+import { reportRejectedBeat } from './ibiRejectionDebugBus'
 
 export const DEFAULT_IBI_ARTIFACT_THRESHOLD_PCT = 0.2
 
@@ -41,7 +50,12 @@ export class IbiArtifactFilter {
       return ibiMs
     }
     const pctChange = Math.abs(ibiMs - this.lastAccepted) / this.lastAccepted
-    if (pctChange > this.thresholdPct) return null
+    if (pctChange > this.thresholdPct) {
+      // TEMP DEBUG — logging only, threshold/logic below is unchanged. See
+      // ibiRejectionDebugBus.ts for why.
+      reportRejectedBeat(ibiMs, this.lastAccepted, pctChange)
+      return null
+    }
     this.lastAccepted = ibiMs
     return ibiMs
   }

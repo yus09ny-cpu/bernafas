@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from 'react'
 import type { HrvDebugStats } from '@/hooks/useHrvSession'
 import { getPulseDotDebugSnapshot, subscribePulseDotDebug } from '@/lib/pulseDotDebugBus' // TEMP DEBUG
+import { getLatestRejection, subscribeRejectedBeats } from '@/lib/ibiRejectionDebugBus' // TEMP DEBUG
 
 interface DebugOverlayProps {
   stats: HrvDebugStats
@@ -22,6 +23,7 @@ interface DebugOverlayProps {
 // would show PulseDot is the one not getting fresh renders/props.
 export default function DebugOverlay({ stats, historyLength, elapsedSec }: DebugOverlayProps) {
   const dotDebug = useSyncExternalStore(subscribePulseDotDebug, getPulseDotDebugSnapshot)
+  const lastRejection = useSyncExternalStore(subscribeRejectedBeats, getLatestRejection)
 
   return (
     <div
@@ -36,6 +38,13 @@ export default function DebugOverlay({ stats, historyLength, elapsedSec }: Debug
       <div>contact lost: {stats.contactLostFlips}</div>
       <div>beats rejected: {stats.rejectedBeats}</div>
       <div>sampler skipped: {stats.sparseGateSkips}</div>
+      {/* Glanceable sanity check without devtools — full trail is in console, see ibiRejectionDebugBus.ts */}
+      <div>
+        last rejected:{' '}
+        {lastRejection
+          ? `${lastRejection.ibiMs}ms vs ${lastRejection.lastAccepted}ms (${(lastRejection.pctChange * 100).toFixed(0)}%)`
+          : '—'}
+      </div>
     </div>
   )
 }
