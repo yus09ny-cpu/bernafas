@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 
 export type BreathPhase = 'in' | 'out'
 
@@ -14,56 +14,60 @@ interface UseBreathingPacerOptions {
 
 interface BreathingPacerState {
   phase: BreathPhase
-  // ms remaining in the current phase, for an optional countdown label.
-  msRemaining: number
   // completed inhale+exhale pairs since running went true.
   cycleCount: number
 }
 
 const DEFAULT_INHALE_MS = 5000
 const DEFAULT_EXHALE_MS = 5000
-const TICK_MS = 100
 
+// One setTimeout per phase, self-rescheduling on each transition — fires
+// exactly twice per cycle (once per phase boundary), not on a fixed poll.
+// A prior 100ms-poll version (setInterval + a since-removed msRemaining
+// countdown nothing ever displayed) re-rendered every consumer of this hook
+// 10x/sec unconditionally, confirmed via profiling as a real, wasteful
+// render-rate floor — see PulseDot's breath-sync investigation. This
+// version produces exactly 2 state updates per 10s cycle (at the default
+// 5s/5s pace) instead of 100.
 export function useBreathingPacer(options?: UseBreathingPacerOptions): BreathingPacerState {
   const inhaleMs = options?.inhaleMs ?? DEFAULT_INHALE_MS
   const exhaleMs = options?.exhaleMs ?? DEFAULT_EXHALE_MS
   const running = options?.running ?? true
 
   const [phase, setPhase] = useState<BreathPhase>('in')
-  const [msRemaining, setMsRemaining] = useState(inhaleMs)
   const [cycleCount, setCycleCount] = useState(0)
-
-  const phaseRef = useRef<BreathPhase>('in')
-  const remainingRef = useRef(inhaleMs)
 
   useEffect(() => {
     if (!running) return
     // Reset to a clean inhale start whenever the pacer (re)starts.
-    phaseRef.current = 'in'
-    remainingRef.current = inhaleMs
     setPhase('in')
-    setMsRemaining(inhaleMs)
 
-    const id = window.setInterval(() => {
-      remainingRef.current -= TICK_MS
-      if (remainingRef.current <= 0) {
-        if (phaseRef.current === 'in') {
-          phaseRef.current = 'out'
-          remainingRef.current = exhaleMs
+    // Local to this effect run (not a ref) — safe because every mutation
+    // and read happens inside this same closure chain, never across
+    // renders; the effect only re-runs when running/inhaleMs/exhaleMs
+    // change, at which point cleanup below tears the whole chain down.
+    let currentPhase: BreathPhase = 'in'
+    let timeoutId: number
+
+    const scheduleNext = () => {
+      const duration = currentPhase === 'in' ? inhaleMs : exhaleMs
+      timeoutId = window.setTimeout(() => {
+        if (currentPhase === 'in') {
+          currentPhase = 'out'
           setPhase('out')
         } else {
-          phaseRef.current = 'in'
-          remainingRef.current = inhaleMs
+          currentPhase = 'in'
           setPhase('in')
           setCycleCount(c => c + 1)
         }
-      }
-      setMsRemaining(remainingRef.current)
-    }, TICK_MS)
+        scheduleNext()
+      }, duration)
+    }
+    scheduleNext()
 
-    return () => window.clearInterval(id)
+    return () => window.clearTimeout(timeoutId)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [running, inhaleMs, exhaleMs])
 
-  return { phase, msRemaining: Math.max(0, msRemaining), cycleCount }
+  return { phase, cycleCount }
 }
