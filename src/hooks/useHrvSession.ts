@@ -1,41 +1,32 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useHeartRateMonitor, type HeartRateReading } from '@/hooks/useHeartRateMonitor'
-import { computeCoherence } from '@/lib/hrvCoherence'
+import { computeCoherence, computeRmssdMs } from '@/lib/hrvCoherence'
 import { BpmSmoother } from '@/lib/bpmSmoother'
 import { IbiArtifactFilter } from '@/lib/ibiArtifactFilter'
+import type { HistoryPoint } from '@/lib/sessionStats'
+
+export type { HistoryPoint }
 
 // How many real R-R intervals feed the *live* on-screen coherence ring.
 // Short/responsive on purpose (so the number moves with the breath the user
 // just took) — same caveat as Audit Jiwa's live HUD: a ~short rolling window
 // is far shorter than the 60s window HRV research validates computeCoherence
 // against. Fine for a live "how am I doing right now" glance, not a
-// scientific reading — that's what the session-end average is for.
+// scientific reading — that's what the session average (sessionStats.ts) is for.
 const LIVE_WINDOW_SIZE = 8
 
-// How often a coherence sample is pushed into history, for the post-session
-// trend sparkline.
+// How often a sample (coherence + bpm + rmssd) is pushed into `history` — the
+// single timeline every carousel page (the segmented ring, the Skrin 4
+// charts) reads from. All four session pages are views of this one array,
+// not separate data pulls.
 const HISTORY_SAMPLE_MS = 3000
-
-export interface CoherencePoint {
-  t: number // seconds since session start
-  value: number // 0-1
-}
-
-export interface SessionSummary {
-  durationSec: number
-  usedDevice: boolean
-  avgCoherence: number | null // 0-1, null if no real R-R data this session
-  startBpm: number | null
-  endBpm: number | null
-  avgBpm: number | null
-  coherenceHistory: CoherencePoint[]
-}
 
 export function useHrvSession() {
   const [sessionActive, setSessionActive] = useState(false)
   const [smoothedBpm, setSmoothedBpm] = useState<number | null>(null)
   const [coherenceLive, setCoherenceLive] = useState<number | null>(null)
-  const [coherenceHistory, setCoherenceHistory] = useState<CoherencePoint[]>([])
+  const [history, setHistory] = useState<HistoryPoint[]>([])
+  const [elapsedSec, setElapsedSec] = useState(0)
   // True the instant a "Sensor Contact Detected" = 0 packet arrives (finger
   // lifted off the sensor) — distinct from hr.state disconnecting (BLE link
   // itself dropping). The device stays connected the whole time; this is a
@@ -45,11 +36,7 @@ export function useHrvSession() {
   const smootherRef = useRef<BpmSmoother | null>(null)
   const artifactFilterRef = useRef<IbiArtifactFilter | null>(null)
   const liveRrRef = useRef<number[]>([])
-  const sessionRrRef = useRef<number[]>([])
-  const bpmSamplesRef = useRef<number[]>([])
-  const startBpmRef = useRef<number | null>(null)
-  const endBpmRef = useRef<number | null>(null)
-  const usedDeviceRef = useRef(false)
+  const smoothedBpmRef = useRef<number | null>(null)
   const sessionStartRef = useRef<number>(0)
   // Ref mirror of sessionActive so handleReading (whose identity must stay
   // stable, it's passed into useHeartRateMonitor) always sees the current
@@ -68,6 +55,7 @@ export function useHrvSession() {
       setContactLost(true)
       setSmoothedBpm(null)
       setCoherenceLive(null)
+      smoothedBpmRef.current = null
       // Clear the live rolling window and smoother state so the first real
       // beats after contact resumes don't get averaged/smoothed together
       // with stale pre-loss values spanning the gap.
@@ -85,14 +73,11 @@ export function useHrvSession() {
     // Hard physiological sanity bound — outside this a raw BLE reading is a
     // sensor artifact (motion, poor contact), never a real beat.
     if (reading.bpm < 30 || reading.bpm > 220) return
-    const smoothed = smootherRef.current.add(reading.bpm)
-    setSmoothedBpm(Math.round(smoothed))
+    const smoothed = Math.round(smootherRef.current.add(reading.bpm))
+    smoothedBpmRef.current = smoothed
+    setSmoothedBpm(smoothed)
 
     if (!sessionActiveRef.current) return
-    usedDeviceRef.current = true
-    bpmSamplesRef.current.push(reading.bpm)
-    endBpmRef.current = reading.bpm
-    if (startBpmRef.current === null) startBpmRef.current = reading.bpm
 
     if (reading.rrIntervalsMs.length) {
       if (!artifactFilterRef.current) artifactFilterRef.current = new IbiArtifactFilter()
@@ -106,7 +91,6 @@ export function useHrvSession() {
         if (accepted === null) continue
         liveRrRef.current.push(accepted)
         if (liveRrRef.current.length > LIVE_WINDOW_SIZE) liveRrRef.current.shift()
-        sessionRrRef.current.push(accepted)
       }
       if (liveRrRef.current.length >= 3) {
         setCoherenceLive(computeCoherence(liveRrRef.current))
@@ -124,50 +108,53 @@ export function useHrvSession() {
     smootherRef.current = new BpmSmoother()
     artifactFilterRef.current = new IbiArtifactFilter()
     liveRrRef.current = []
-    sessionRrRef.current = []
-    bpmSamplesRef.current = []
-    startBpmRef.current = null
-    endBpmRef.current = null
-    usedDeviceRef.current = false
+    smoothedBpmRef.current = null
     sessionStartRef.current = performance.now()
     setSmoothedBpm(null)
     setCoherenceLive(null)
-    setCoherenceHistory([])
+    setHistory([])
+    setElapsedSec(0)
     setContactLost(false)
     setSessionActive(true)
   }, [])
 
-  const endSession = useCallback((): SessionSummary => {
+  // Stops sampling — everything session-scoped (history, elapsedSec) simply
+  // freezes at its last value, which is what turns Skrin 4 from a live
+  // dashboard into a static end-of-session summary without needing a
+  // separate snapshot object. smoothedBpm keeps updating from the ongoing
+  // BLE feed (the pulse readout stays alive on the connect screen too).
+  const endSession = useCallback(() => {
     setSessionActive(false)
-    const durationSec = Math.round((performance.now() - sessionStartRef.current) / 1000)
-    const avgCoherence = sessionRrRef.current.length >= 3 ? computeCoherence(sessionRrRef.current) : null
-    const avgBpm = bpmSamplesRef.current.length
-      ? Math.round(bpmSamplesRef.current.reduce((a, b) => a + b, 0) / bpmSamplesRef.current.length)
-      : null
-    return {
-      durationSec,
-      usedDevice: usedDeviceRef.current,
-      avgCoherence,
-      startBpm: startBpmRef.current,
-      endBpm: endBpmRef.current,
-      avgBpm,
-      coherenceHistory,
-    }
-  }, [coherenceHistory])
+  }, [])
 
-  // Periodic history sampler for the post-session trend sparkline — only
-  // while a session is running, and only once real coherence exists.
+  // Periodic sampler for the session timeline — one HistoryPoint every
+  // HISTORY_SAMPLE_MS, only while the session is running and only once real
+  // coherence exists (i.e. only for sessions using a device). rmssdMs is
+  // computed off the same rolling R-R window coherenceLive was just derived
+  // from, so the ring, the live score, and this sample never disagree about
+  // "right now."
   useEffect(() => {
     if (!sessionActive) return
     const id = window.setInterval(() => {
-      setCoherenceHistory(prev => {
-        if (coherenceLive === null) return prev
-        const t = Math.round((performance.now() - sessionStartRef.current) / 1000)
-        return [...prev, { t, value: coherenceLive }]
-      })
+      if (liveRrRef.current.length < 3) return
+      const t = Math.round((performance.now() - sessionStartRef.current) / 1000)
+      const coherence = computeCoherence(liveRrRef.current)
+      const rmssdMs = computeRmssdMs(liveRrRef.current)
+      setHistory(prev => [...prev, { t, coherence, bpm: smoothedBpmRef.current, rmssdMs }])
     }, HISTORY_SAMPLE_MS)
     return () => window.clearInterval(id)
-  }, [sessionActive, coherenceLive])
+  }, [sessionActive])
+
+  // Separate 1s clock for the "Length" stat — ticks regardless of whether a
+  // device is connected (a no-device session still has a duration), unlike
+  // `history` which only grows when real HRV data is flowing.
+  useEffect(() => {
+    if (!sessionActive) return
+    const id = window.setInterval(() => {
+      setElapsedSec(Math.round((performance.now() - sessionStartRef.current) / 1000))
+    }, 1000)
+    return () => window.clearInterval(id)
+  }, [sessionActive])
 
   return {
     ...hr,
@@ -175,6 +162,8 @@ export function useHrvSession() {
     coherenceLive,
     contactLost,
     sessionActive,
+    history,
+    elapsedSec,
     startSession,
     endSession,
   }
