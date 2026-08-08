@@ -33,6 +33,14 @@ const REPEATS = 8
 const BASE_BPM = 60
 const BASE_LOOP_DURATION_MS = ((REPEATS * 60) / BASE_BPM) * 1000
 
+// Strict "one blip-width per real beat-interval" pacing (rate = bpm/BASE_BPM
+// with no further scaling) read as too fast/busy — this scales playback
+// rate down uniformly, so relative pacing across different bpms is
+// preserved (a faster heart rate still visibly scrolls faster than a
+// slower one), just calmer overall. Tune this one constant to retime the
+// whole strip; nothing else needs to change.
+const SCROLL_SPEED_FACTOR = 0.5
+
 export default function PulseWaveform({ bpm, color = '#3e9c9c', className }: PulseWaveformProps) {
   const svgRef = useRef<SVGSVGElement>(null)
   const animationRef = useRef<Animation | null>(null)
@@ -65,7 +73,7 @@ export default function PulseWaveform({ bpm, color = '#3e9c9c', className }: Pul
   // No reading yet: keep a slow idle tick alive rather than a static dot.
   const effectiveBpm = bpm ?? 12
   useEffect(() => {
-    animationRef.current?.updatePlaybackRate(effectiveBpm / BASE_BPM)
+    animationRef.current?.updatePlaybackRate((effectiveBpm / BASE_BPM) * SCROLL_SPEED_FACTOR)
   }, [effectiveBpm])
 
   return (

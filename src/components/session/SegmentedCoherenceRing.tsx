@@ -26,11 +26,29 @@ function polarToCartesian(cx: number, cy: number, r: number, angleDeg: number) {
   return { x: cx + r * Math.cos(angleRad), y: cy + r * Math.sin(angleRad) }
 }
 
-function arcPath(cx: number, cy: number, r: number, startAngle: number, endAngle: number) {
-  const start = polarToCartesian(cx, cy, r, endAngle)
-  const end = polarToCartesian(cx, cy, r, startAngle)
-  const largeArc = endAngle - startAngle > 180 ? 1 : 0
-  return `M ${start.x} ${start.y} A ${r} ${r} 0 ${largeArc} 0 ${end.x} ${end.y}`
+// Each segment is its own small straight rectangle ("tick"), not a slice of
+// one continuous curved stroke — a prior version drew all 40 segments as
+// arcs sharing the ring's curvature, so same-colored neighbors visually
+// fused into one smooth band instead of reading as distinct boxes. A flat
+// rect has hard corners, so adjacent segments stay visually separate
+// (the GAP_DEGREES gap between them) regardless of color.
+//
+// length runs tangent to the circle (the segment's "along the ring" size),
+// thickness runs radially (the ring's "band width"), centered on the
+// segment's midpoint angle. Rotating by that same angle aligns the rect's
+// local +x axis (its length) with the circle's tangent direction there —
+// works out exactly with no extra +/-90° offset because polarToCartesian's
+// own -90° convention (0° = top) already accounts for it.
+function tickRectProps(cx: number, cy: number, r: number, angleDeg: number, length: number, thickness: number) {
+  const center = polarToCartesian(cx, cy, r, angleDeg)
+  return {
+    x: -length / 2,
+    y: -thickness / 2,
+    width: length,
+    height: thickness,
+    rx: thickness * 0.35,
+    transform: `translate(${center.x} ${center.y}) rotate(${angleDeg})`,
+  }
 }
 
 // The color a segment "locked in" — the most recent history sample at or
@@ -47,28 +65,26 @@ function colorForSegment(history: HistoryPoint[], windowEndSec: number): string 
 
 export default function SegmentedCoherenceRing({ history, elapsedSec, size = 260, children }: SegmentedCoherenceRingProps) {
   const r = size * 0.46
-  const strokeWidth = size * 0.045
+  const tickThickness = size * 0.045
   const center = size / 2
   const segmentSpan = 360 / NUM_SEGMENTS - GAP_DEGREES
+  const tickLength = r * ((segmentSpan * Math.PI) / 180) // arc-length equivalent, so tick size matches the ring's old footprint
 
   return (
     <div className="relative flex items-center justify-center" style={{ width: size, height: size }}>
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="absolute inset-0">
         {Array.from({ length: NUM_SEGMENTS }, (_, i) => {
           const segStart = i * (360 / NUM_SEGMENTS)
-          const segEnd = segStart + segmentSpan
+          const midAngle = segStart + segmentSpan / 2
           const windowEndSec = (i + 1) * SEGMENT_DURATION
           const isReached = elapsedSec >= i * SEGMENT_DURATION
           const zoneColor = isReached ? colorForSegment(history, windowEndSec) : null
           return (
-            <path
+            <rect
               key={i}
-              d={arcPath(center, center, r, segStart, segEnd)}
-              fill="none"
-              stroke={zoneColor ?? TRACK_COLOR}
-              strokeWidth={strokeWidth}
-              strokeLinecap="round"
-              style={{ transition: 'stroke 500ms ease-out' }}
+              {...tickRectProps(center, center, r, midAngle, tickLength, tickThickness)}
+              fill={zoneColor ?? TRACK_COLOR}
+              style={{ transition: 'fill 500ms ease-out' }}
             />
           )
         })}
