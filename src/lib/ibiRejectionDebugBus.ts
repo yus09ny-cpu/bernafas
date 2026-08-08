@@ -8,8 +8,11 @@
 // threshold (DEFAULT_IBI_ARTIFACT_THRESHOLD_PCT in ibiArtifactFilter.ts) is
 // simply too strict for real-world signal — without changing that threshold
 // yet. Every rejection logs to console (full trail, e.g. via chrome://inspect
-// remote debugging) and the most recent one is also kept for DebugOverlay so
-// it's readable on-screen without devtools.
+// remote debugging); getLatestRejection/subscribeRejectedBeats expose the
+// same data for an on-screen readout if one gets wired up again later —
+// unconsumed for now (the debug overlay that used them was removed once the
+// PulseDot investigation closed), left in place since this investigation
+// is still open. Still TEMP — remove once the threshold question is settled.
 export interface RejectedBeat {
   ibiMs: number
   lastAccepted: number

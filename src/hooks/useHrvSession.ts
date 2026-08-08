@@ -7,18 +7,6 @@ import type { HistoryPoint } from '@/lib/sessionStats'
 
 export type { HistoryPoint }
 
-// TEMP DEBUG (Issue 2 investigation, remove once diagnosed) — live counters
-// for the three things that could be starving `history` on real hardware:
-// how often contact actually drops, how often a beat gets rejected as an
-// IBI artifact, and how often the sampler below no-ops because the live R-R
-// window hasn't reached 3 accepted beats yet. Surfaced via DebugOverlay.
-export interface HrvDebugStats {
-  contactLostFlips: number
-  rejectedBeats: number
-  sparseGateSkips: number
-}
-const EMPTY_DEBUG_STATS: HrvDebugStats = { contactLostFlips: 0, rejectedBeats: 0, sparseGateSkips: 0 }
-
 // How many real R-R intervals feed the *live* on-screen coherence ring.
 // Short/responsive on purpose (so the number moves with the breath the user
 // just took) — same caveat as Audit Jiwa's live HUD: a ~short rolling window
@@ -44,8 +32,6 @@ export function useHrvSession() {
   // itself dropping). The device stays connected the whole time; this is a
   // milder, much more common condition (repositioning a finger mid-session).
   const [contactLost, setContactLost] = useState(false)
-  // TEMP DEBUG — see HrvDebugStats above.
-  const [debugStats, setDebugStats] = useState<HrvDebugStats>(EMPTY_DEBUG_STATS)
 
   const smootherRef = useRef<BpmSmoother | null>(null)
   const artifactFilterRef = useRef<IbiArtifactFilter | null>(null)
@@ -56,13 +42,6 @@ export function useHrvSession() {
   // stable, it's passed into useHeartRateMonitor) always sees the current
   // value instead of a stale closure.
   const sessionActiveRef = useRef(false)
-  // TEMP DEBUG counters — kept in refs (not state) so every single BLE
-  // reading/rejected-beat doesn't trigger a re-render; mirrored into
-  // debugStats state once a second alongside elapsedSec instead.
-  const contactLostRef = useRef(false) // for edge-detecting a *flip* into lost, not every not_detected packet
-  const contactLostFlipCountRef = useRef(0)
-  const rejectedBeatCountRef = useRef(0)
-  const sparseGateSkipCountRef = useRef(0)
 
   const handleReading = useCallback((reading: HeartRateReading) => {
     // Firmware now sends an immediate 2-byte packet (flags=0x04, HR=0) the
@@ -73,12 +52,6 @@ export function useHrvSession() {
     // 'not_supported' devices (feature bit off) are NOT gated here — only an
     // explicit, confirmed "no contact" reading is.
     if (reading.sensorContact === 'not_detected') {
-      // TEMP DEBUG — count the flip into "lost", not every not_detected
-      // packet (a real dropout can send many in a row).
-      if (!contactLostRef.current) {
-        contactLostRef.current = true
-        contactLostFlipCountRef.current++
-      }
       setContactLost(true)
       setSmoothedBpm(null)
       setCoherenceLive(null)
@@ -94,7 +67,6 @@ export function useHrvSession() {
       artifactFilterRef.current?.reset()
       return
     }
-    contactLostRef.current = false // TEMP DEBUG — contact regained
     setContactLost(false)
 
     if (!smootherRef.current) smootherRef.current = new BpmSmoother()
@@ -116,10 +88,7 @@ export function useHrvSession() {
         // the filter's own "last accepted" baseline is what the *next*
         // incoming IBI compares against, not this rejected one.
         const accepted = artifactFilterRef.current.accept(rr)
-        if (accepted === null) {
-          rejectedBeatCountRef.current++ // TEMP DEBUG
-          continue
-        }
+        if (accepted === null) continue
         liveRrRef.current.push(accepted)
         if (liveRrRef.current.length > LIVE_WINDOW_SIZE) liveRrRef.current.shift()
       }
@@ -146,12 +115,6 @@ export function useHrvSession() {
     setHistory([])
     setElapsedSec(0)
     setContactLost(false)
-    // TEMP DEBUG — fresh counters per session.
-    contactLostRef.current = false
-    contactLostFlipCountRef.current = 0
-    rejectedBeatCountRef.current = 0
-    sparseGateSkipCountRef.current = 0
-    setDebugStats(EMPTY_DEBUG_STATS)
     setSessionActive(true)
   }, [])
 
@@ -162,13 +125,6 @@ export function useHrvSession() {
   // BLE feed (the pulse readout stays alive on the connect screen too).
   const endSession = useCallback(() => {
     setSessionActive(false)
-    // TEMP DEBUG — final numbers for the Issue 2 investigation, logged once
-    // per session rather than continuously to avoid spamming the console.
-    console.log('[useHrvSession] TEMP DEBUG session summary:', {
-      contactLostFlips: contactLostFlipCountRef.current,
-      rejectedBeats: rejectedBeatCountRef.current,
-      sparseGateSkips: sparseGateSkipCountRef.current,
-    })
   }, [])
 
   // Periodic sampler for the session timeline — one HistoryPoint every
@@ -180,10 +136,7 @@ export function useHrvSession() {
   useEffect(() => {
     if (!sessionActive) return
     const id = window.setInterval(() => {
-      if (liveRrRef.current.length < 3) {
-        sparseGateSkipCountRef.current++ // TEMP DEBUG
-        return
-      }
+      if (liveRrRef.current.length < 3) return
       const t = Math.round((performance.now() - sessionStartRef.current) / 1000)
       const coherence = computeCoherence(liveRrRef.current)
       const rmssdMs = computeRmssdMs(liveRrRef.current)
@@ -194,18 +147,11 @@ export function useHrvSession() {
 
   // Separate 1s clock for the "Length" stat — ticks regardless of whether a
   // device is connected (a no-device session still has a duration), unlike
-  // `history` which only grows when real HRV data is flowing. Also mirrors
-  // the TEMP DEBUG ref counters into state here, piggybacking on this
-  // existing tick rather than adding a fourth interval just for that.
+  // `history` which only grows when real HRV data is flowing.
   useEffect(() => {
     if (!sessionActive) return
     const id = window.setInterval(() => {
       setElapsedSec(Math.round((performance.now() - sessionStartRef.current) / 1000))
-      setDebugStats({
-        contactLostFlips: contactLostFlipCountRef.current,
-        rejectedBeats: rejectedBeatCountRef.current,
-        sparseGateSkips: sparseGateSkipCountRef.current,
-      })
     }, 1000)
     return () => window.clearInterval(id)
   }, [sessionActive])
@@ -218,7 +164,6 @@ export function useHrvSession() {
     sessionActive,
     history,
     elapsedSec,
-    debugStats, // TEMP DEBUG — see HrvDebugStats
     startSession,
     endSession,
   }

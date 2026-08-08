@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import ConnectScreen from '@/screens/ConnectScreen'
 import SessionCarousel from '@/components/session/SessionCarousel'
-import DebugOverlay from '@/components/session/DebugOverlay' // TEMP DEBUG — see DebugOverlay.tsx
 import { useHrvSession } from '@/hooks/useHrvSession'
 import { useBreathingPacer } from '@/hooks/useBreathingPacer'
 import { recordSessionCompleted, isUnlockEligible } from '@/lib/unlockBonus'
@@ -71,10 +70,5 @@ export default function SessionScreen() {
   // icon swaps from X to a refresh icon the instant sessionActive flips,
   // and that same icon change is what makes onEndSession safe to repurpose
   // as "start a new session" on the second press.
-  return (
-    <div className="relative h-full w-full">
-      <SessionCarousel data={data} onEndSession={hrv.sessionActive ? endSession : newSession} />
-      <DebugOverlay stats={hrv.debugStats} historyLength={hrv.history.length} elapsedSec={hrv.elapsedSec} />
-    </div>
-  )
+  return <SessionCarousel data={data} onEndSession={hrv.sessionActive ? endSession : newSession} />
 }
