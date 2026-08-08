@@ -6,6 +6,10 @@
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-left: env(safe-area-inset-left, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
+  /* Bottom tab bar's own height (excludes safe-bottom, added separately at
+     each use site) — one place so every screen's bottom padding and the
+     nav bar's own height can never drift apart. */
+  --nav-height: 4.25rem;
 }
 
 /* ─── Bernafas palette ────────────────────────────────────────────────────
@@ -26,7 +30,32 @@
   --color-text-muted: #64748b;
   --color-border: #dce8e6;
 
+  /* Coherence zones — kept in sync with src/lib/coherenceZones.ts (ZONE_COLOR).
+     Duplicated here (rather than only in JS) so Tailwind arbitrary-value
+     classes can reference them as CSS vars where a component doesn't
+     already import the JS constant. */
+  --color-zone-low: #e0614a;
+  --color-zone-medium: #5b8fd9;
+  --color-zone-high: #3fae7a;
+
+  /* Bottom nav — the one deliberately dark-themed surface in an otherwise
+     light app (see BottomNav.tsx). */
+  --color-nav-bg: rgba(17, 28, 27, 0.92);
+  --color-nav-active: #7fd6cd;
+  --color-nav-inactive: #7c9390;
+
   --font-sans: 'Manrope', system-ui, sans-serif;
+}
+
+/* Hide the scrollbar on the session carousel's scroll-snap track — the dot
+   indicator is the intended navigation affordance, a visible scrollbar on a
+   full-bleed swipeable view would look like a bug, not a feature. */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
 }
 
 * {

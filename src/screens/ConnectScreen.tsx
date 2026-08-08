@@ -26,7 +26,10 @@ export default function ConnectScreen({
   const isUnsupported = state === 'unsupported'
 
   return (
-    <div className="flex min-h-dvh flex-col items-center justify-between px-6 py-10 text-center" style={{ paddingTop: 'calc(2.5rem + var(--safe-top))', paddingBottom: 'calc(2rem + var(--safe-bottom))' }}>
+    <div
+      className="flex h-full flex-col items-center justify-between overflow-y-auto px-6 py-10 text-center"
+      style={{ paddingTop: 'calc(2.5rem + var(--safe-top))', paddingBottom: 'calc(var(--nav-height) + 2rem + var(--safe-bottom))' }}
+    >
       <div className="flex flex-col items-center gap-2 pt-4">
         <span className="text-2xl font-extrabold tracking-tight text-[var(--color-primary-dark)]">Bernafas</span>
         <span className="text-sm text-[var(--color-text-muted)]">Tenang, satu nafas pada satu masa</span>

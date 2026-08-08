@@ -13,11 +13,19 @@ diduplikasi, hanya UI.
 - [x] Hooks/lib dikongsi (disalin dari Audit Jiwa, brand-neutral):
       `useHeartRateMonitor`, `useWakeLock`, `useAudioPulse`, `hrvCoherence.ts`
       (computeCoherence/computeRmssdMs), `bpmSmoother.ts` (BpmSmoother)
-- [x] Skrin 1 — Sambungan Bluetooth (`src/screens/ConnectScreen.tsx`)
-- [x] Skrin 2 — Panduan pernafasan / visual pacer (`src/screens/BreathingScreen.tsx`)
-- [ ] Skrin 3 — Skor HRV live semasa sesi (belum dibina — tunggu sah reka bentuk)
-- [ ] Skrin 4 — Ringkasan selepas sesi
-- [ ] Placeholder "unlock bonus" (Peringkat B)
+- [x] App shell — bottom nav 5 tab (Sesi/Semakan/Jurnal/Panduan/NafasCloud),
+      ikon custom (`src/components/nav/`), Semakan/Jurnal/Panduan/NafasCloud
+      masih placeholder "Akan datang"
+- [x] Skrin Sesi — gate sambungan Bluetooth (`src/screens/ConnectScreen.tsx`)
+      diikuti carousel 4 halaman boleh leret (`src/components/session/SessionCarousel.tsx`),
+      semuanya paparan dari SATU stream sesi live (`useHrvSession`'s `history`):
+  - Skrin 1 — cincin ringkas (waveform + dot + cincin bersegmen ikut zon koheren)
+  - Skrin 2 — scene full-bleed (waveform + dot, tiada cincin)
+  - Skrin 3 — mandala (cincin sama + bunga animasi + prompt bimbingan berputar)
+  - Skrin 4 — ringkasan (stat bar, carta nadi/koheren/RMSSD, bacaan nadi) —
+        skrol menegak, kekal terbuka semasa sesi live ATAU selepas tamat
+- [ ] Placeholder "unlock bonus" (Peringkat B) — kad sedia ada, kandungan
+      sebenar masih belum diputuskan (lihat `src/lib/unlockBonus.ts`)
 
 ## Reka bentuk
 
