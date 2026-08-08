@@ -1,6 +1,6 @@
 // Rotating coaching lines shown under the Skrin 3 mandala. Short, present-
 // tense, secular wellness tone — same register as the rest of Bernafas'
-// copy (see ConnectScreen/BreathingScreen), no spiritual/TQN/zikir language
+// copy (see ConnectScreen/SessionScreen), no spiritual/TQN/zikir language
 // per the project's brand-separation rule (README.md).
 export const COACHING_PROMPTS_BM: string[] = [
   'Fokus pada rasa tenang',
