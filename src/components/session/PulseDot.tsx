@@ -29,14 +29,15 @@ interface PulseDotProps {
 // heartbeat keyframe; nested transforms compose visually, so the sphere
 // visibly does both at once.
 export default function PulseDot({ phase, phaseDurationMs, bpm, zone, size = 120, className }: PulseDotProps) {
-  // TEMP EXTREME — 2.2/0.4, deliberately impossible-to-miss. Pushed to
-  // production specifically to isolate "is the breath-scale mechanism
-  // reaching the screen on bernafas.my at all" from "is 1.25/0.85 just too
-  // subtle to notice" — the normal range (1.25/0.85, confirmed correct via
-  // computed-style polling both locally and on a prior production check)
-  // resumes once that question is answered. See pulseDotDebugBus.ts-era
-  // investigation for the verification history this follows on from.
-  const breathScale = phase === 'in' ? 2.2 : 0.4
+  // 1.4/0.7 — final value. History: 1.15/0.88 was confirmed *correct*
+  // (computed transform genuinely oscillates) but too subtle to notice;
+  // 1.25/0.85 was still too subtle on real hardware, which turned out to be
+  // a red herring — a real bug (useBreathingPacer's 100ms poll forcing a
+  // ~10Hz unconditional re-render floor, since fixed) was the actual cause,
+  // confirmed via a deliberately extreme 2.2/0.4 pushed to production,
+  // clearly visible. Dialed back to this range as noticeable-but-not-
+  // exaggerated once the underlying mechanism was proven sound end to end.
+  const breathScale = phase === 'in' ? 1.4 : 0.7
   // TEMP DEBUG — report the *actual* values this render computed, every
   // single render (no dep array), so DebugOverlay shows real runtime state
   // rather than a value recomputed/guessed at elsewhere. See pulseDotDebugBus.ts.
