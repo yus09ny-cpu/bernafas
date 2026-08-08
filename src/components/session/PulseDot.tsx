@@ -17,15 +17,29 @@ interface PulseDotProps {
 // "tick" once per beat, timed off the live BPM). zone is null pre-device/
 // pre-data and falls back to the brand teal rather than a zone color, since
 // there's no live coherence yet to color it by.
+//
+// The two rhythms live on two *nested* elements, not one: a running CSS
+// `animation` fully overrides an element's `transform` for as long as it's
+// active, so a single div can't carry both the breath's transition-based
+// scale and the heartbeat's keyframe-based scale at once — whichever is the
+// `animation` would silently win and mask the other. The outer wrapper
+// below owns the slow breath transform; the sphere inside it owns the fast
+// heartbeat keyframe; nested transforms compose visually, so the sphere
+// visibly does both at once.
 export default function PulseDot({ phase, phaseDurationMs, bpm, zone, size = 120, className }: PulseDotProps) {
-  const breathScale = phase === 'in' ? 1.15 : 0.88
+  // 1.25/0.85 — bumped up from an initial 1.15/0.88 after that range verified
+  // as *correct* (computed transform genuinely oscillates) but read as too
+  // subtle to notice at a glance; verified via a 1.6/0.6 exaggeration pass
+  // first (clearly visible), then dialed back to this range and re-verified.
+  const breathScale = phase === 'in' ? 1.25 : 0.85
   const color = zone ? ZONE_COLOR[zone] : '#3e9c9c'
   // No reading yet: keep a slow idle tick alive rather than a static dot.
   const beatDurationSec = 60 / (bpm ?? 12)
+  const sphereSize = size * 0.56
 
   return (
     <div className={cn('relative flex items-center justify-center', className)} style={{ width: size, height: size }}>
-      {/* Breath layer — slow, large expand/contract */}
+      {/* Halo — slow, large expand/contract, kept for the depth it adds behind the sphere */}
       <div
         className="absolute rounded-full"
         style={{
@@ -37,17 +51,27 @@ export default function PulseDot({ phase, phaseDurationMs, bpm, zone, size = 120
           willChange: 'transform',
         }}
       />
-      {/* Heartbeat layer — fast, small tick once per beat */}
+      {/* Breath wrapper — same slow scale as the halo, sized to the sphere */}
       <div
         className="absolute rounded-full"
         style={{
-          width: size * 0.56,
-          height: size * 0.56,
-          background: `radial-gradient(circle at 35% 30%, #ffffff, ${color}cc 45%, ${color} 100%)`,
-          boxShadow: `0 6px 24px ${color}40`,
-          animation: `bernafas-heartbeat ${beatDurationSec}s ease-in-out infinite`,
+          width: sphereSize,
+          height: sphereSize,
+          transform: `scale(${breathScale})`,
+          transition: `transform ${phaseDurationMs}ms cubic-bezier(0.45, 0, 0.55, 1)`,
+          willChange: 'transform',
         }}
-      />
+      >
+        {/* Sphere — fast, small heartbeat tick once per beat, nested inside the breath wrapper */}
+        <div
+          className="h-full w-full rounded-full"
+          style={{
+            background: `radial-gradient(circle at 35% 30%, #ffffff, ${color}cc 45%, ${color} 100%)`,
+            boxShadow: `0 6px 24px ${color}40`,
+            animation: `bernafas-heartbeat ${beatDurationSec}s ease-in-out infinite`,
+          }}
+        />
+      </div>
       <style>{`
         @keyframes bernafas-heartbeat {
           0%   { transform: scale(1); }
