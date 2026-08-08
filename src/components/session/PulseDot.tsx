@@ -1,6 +1,8 @@
+import { useEffect } from 'react'
 import { cn } from '@/lib/utils'
 import { ZONE_COLOR, type CoherenceZone } from '@/lib/coherenceZones'
 import type { BreathPhase } from '@/hooks/useBreathingPacer'
+import { reportPulseDotRender } from '@/lib/pulseDotDebugBus' // TEMP DEBUG
 
 interface PulseDotProps {
   phase: BreathPhase
@@ -32,6 +34,12 @@ export default function PulseDot({ phase, phaseDurationMs, bpm, zone, size = 120
   // subtle to notice at a glance; verified via a 1.6/0.6 exaggeration pass
   // first (clearly visible), then dialed back to this range and re-verified.
   const breathScale = phase === 'in' ? 1.25 : 0.85
+  // TEMP DEBUG — report the *actual* values this render computed, every
+  // single render (no dep array), so DebugOverlay shows real runtime state
+  // rather than a value recomputed/guessed at elsewhere. See pulseDotDebugBus.ts.
+  useEffect(() => {
+    reportPulseDotRender(phase, breathScale)
+  })
   const color = zone ? ZONE_COLOR[zone] : '#3e9c9c'
   // No reading yet: keep a slow idle tick alive rather than a static dot.
   const beatDurationSec = 60 / (bpm ?? 12)
