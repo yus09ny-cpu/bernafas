@@ -30,6 +30,17 @@ interface PulseDotProps {
 const BASE_BPM = 60
 const BASE_BEAT_DURATION_MS = (60 / BASE_BPM) * 1000
 
+// Breath-scale transition curve — pure CSS transition-timing-function, no
+// WAAPI involved. easeInOutSine: flatter through the middle and gentler
+// acceleration into/out of the phase-flip turnaround than the previous
+// easeInOutQuad (cubic-bezier(0.45, 0, 0.55, 1)), which reads as slightly
+// mechanical at the peak/trough. Swap this one constant to compare curves —
+// alternate worth trying: 'cubic-bezier(0.445, 0.05, 0.55, 0.95)' (an older,
+// commonly-cited "easeInOutSine" approximation pulled slightly off the 0/1
+// y-axis — marginally snappier through the middle, still much rounder than
+// the quad curve it's replacing).
+const BREATH_EASING = 'cubic-bezier(0.37, 0, 0.63, 1)' // easeInOutSine
+
 // Center dot for Skrin 1 (ring) — synced to *two* independent rhythms at
 // once: the slow breath phase (scale, same expand-on-inhale/contract-on-
 // exhale as BreathOrb) and the fast heartbeat (a quick brightness/scale
@@ -93,7 +104,7 @@ export default function PulseDot({ phase, phaseDurationMs, bpm, zone, size = 120
           width: size,
           height: size,
           transform: `scale(${breathScale})`,
-          transition: `transform ${phaseDurationMs}ms cubic-bezier(0.45, 0, 0.55, 1)`,
+          transition: `transform ${phaseDurationMs}ms ${BREATH_EASING}`,
           background: `radial-gradient(circle at center, ${color}33, ${color}08 70%, transparent 80%)`,
           willChange: 'transform',
         }}
@@ -105,7 +116,7 @@ export default function PulseDot({ phase, phaseDurationMs, bpm, zone, size = 120
           width: sphereSize,
           height: sphereSize,
           transform: `scale(${breathScale})`,
-          transition: `transform ${phaseDurationMs}ms cubic-bezier(0.45, 0, 0.55, 1)`,
+          transition: `transform ${phaseDurationMs}ms ${BREATH_EASING}`,
           willChange: 'transform',
         }}
       >
