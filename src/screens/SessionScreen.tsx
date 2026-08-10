@@ -4,6 +4,8 @@ import SessionCarousel from '@/components/session/SessionCarousel'
 import { useHrvSession } from '@/hooks/useHrvSession'
 import { useBreathingPacer } from '@/hooks/useBreathingPacer'
 import { useZoneDominance } from '@/hooks/useZoneDominance'
+import { useAuth } from '@/hooks/useAuth'
+import { saveSession } from '@/lib/sessionPersistence'
 import { recordSessionCompleted, isUnlockEligible } from '@/lib/unlockBonus'
 import type { LiveSessionData } from '@/screens/session/types'
 
@@ -26,6 +28,11 @@ export default function SessionScreen() {
   const [showUnlockBonus, setShowUnlockBonus] = useState(false)
   const hrv = useHrvSession()
   const pacer = useBreathingPacer({ inhaleMs: INHALE_MS, exhaleMs: EXHALE_MS, running: started })
+  // App.tsx already gates every screen behind auth, so `session` here is
+  // never null by the time endSession can actually fire — session.user.id
+  // is what RLS's `user_id = auth.uid()` check on the sessions table
+  // matches against.
+  const { session } = useAuth()
   // Standardized on coherenceLiveAlt (calm-breath-pulse's frequency-domain
   // formula) as the single source driving the ring/flower everywhere it's
   // shown — see the comment on `zones` in types.ts for what's NOT yet
@@ -42,6 +49,18 @@ export default function SessionScreen() {
     hrv.endSession()
     recordSessionCompleted()
     setShowUnlockBonus(isUnlockEligible())
+    // Fire-and-forget, same as recordSessionCompleted() above — Skrin 4
+    // freezing and showing the summary doesn't wait on this. sessionStartedAt
+    // is only set by hrv.startSession(), so by the time endSession can run
+    // it's always non-null; the null check is just for TypeScript.
+    if (session?.user.id && hrv.sessionStartedAt) {
+      saveSession({
+        userId: session.user.id,
+        startedAt: hrv.sessionStartedAt,
+        durationSec: hrv.elapsedSec,
+        history: hrv.history,
+      })
+    }
   }
 
   const newSession = () => {

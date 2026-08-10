@@ -77,6 +77,10 @@ export function useHrvSession() {
   const coherenceAltRef = useRef<number | null>(null)
   const smoothedBpmRef = useRef<number | null>(null)
   const sessionStartRef = useRef<number>(0)
+  // Wall-clock (Date.now()-based) counterpart to sessionStartRef, which is
+  // performance.now()-based (monotonic, not a real timestamp) — needed for
+  // the sessions.started_at column when a session is saved to Supabase.
+  const [sessionStartedAt, setSessionStartedAt] = useState<Date | null>(null)
   // TEMP — jerky-heartbeat-on-contact investigation. Dev-only, same pattern
   // as the raw-bytes log in useHeartRateMonitor.ts. Logs what actually feeds
   // PulseDot's updatePlaybackRate() so we can see real packet cadence/noise
@@ -223,6 +227,7 @@ export function useHrvSession() {
     liveRrRef.current = []
     smoothedBpmRef.current = null
     sessionStartRef.current = performance.now()
+    setSessionStartedAt(new Date())
     setSmoothedBpm(null)
     setCoherenceLive(null)
     setHistory([])
@@ -305,6 +310,7 @@ export function useHrvSession() {
     contactLost,
     sensorContact,
     sessionActive,
+    sessionStartedAt,
     history,
     elapsedSec,
     beats,
