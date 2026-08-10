@@ -13,6 +13,13 @@ interface SessionHeaderProps {
 // is the light pastel surface (Skrin 1/3/4) or the full-bleed scene photo
 // (Skrin 2), without each page having to pick its own contrast-safe colors.
 //
+// Left padding clears App.tsx's fixed AccountMenu button, which anchors to
+// the same top-left corner (same top offset) across every screen — without
+// it, the bpm badge rendered underneath and got visually clipped by the
+// account button sitting on top of it. --account-menu-clear (index.css) is
+// the single source for that clearance so the two can't drift back out of
+// sync if AccountMenu's own size/position ever changes.
+//
 // The right-hand button does double duty and swaps its icon to say so: X
 // ends the running session (freezes Skrin 4 into a summary, doesn't
 // navigate away — the user may still swipe/tap back through 1-3); once
@@ -21,8 +28,8 @@ interface SessionHeaderProps {
 export default function SessionHeader({ bpm, isDeviceConnected, contactLost, sessionActive, onEnd }: SessionHeaderProps) {
   return (
     <div
-      className="pointer-events-none absolute inset-x-0 top-0 z-30 flex items-center justify-between px-5"
-      style={{ paddingTop: 'calc(1rem + var(--safe-top))' }}
+      className="pointer-events-none absolute inset-x-0 top-0 z-30 flex items-center justify-between pr-5"
+      style={{ paddingTop: 'calc(1rem + var(--safe-top))', paddingLeft: 'var(--account-menu-clear)' }}
     >
       {isDeviceConnected ? (
         contactLost ? (

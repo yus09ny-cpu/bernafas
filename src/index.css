@@ -14,6 +14,12 @@
      each use site) — one place so every screen's bottom padding and the
      nav bar's own height can never drift apart. */
   --nav-height: 4.25rem;
+  /* Horizontal space AccountMenu's fixed top-left button occupies (its own
+     left-4 offset + size-10 diameter) plus a clearance gap — one place so
+     anything else that might otherwise render under that corner (e.g.
+     SessionHeader's bpm badge) can pad past it without hardcoding pixel
+     math that drifts out of sync with AccountMenu's own layout. */
+  --account-menu-clear: 4.25rem;
 }
 
 /* ─── Bernafas palette ────────────────────────────────────────────────────
