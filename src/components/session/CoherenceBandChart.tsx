@@ -1,10 +1,10 @@
 import { buildLinePath } from '@/lib/chartMath'
-import type { HistoryPoint } from '@/lib/sessionStats'
+import type { SessionHistoryPoint } from '@/lib/sessionStats'
 import { ZONE_BOUNDARY, ZONE_COLOR, ZONE_LABEL_BM, type CoherenceZone } from '@/lib/coherenceZones'
 import { ChartCard, ChartEmptyState } from '@/components/session/ChartCard'
 
 interface CoherenceBandChartProps {
-  history: HistoryPoint[]
+  history: SessionHistoryPoint[]
 }
 
 const WIDTH = 320

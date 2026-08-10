@@ -10,3 +10,9 @@ export function formatDuration(sec: number): string {
   const s = sec % 60
   return `${m}:${String(s).padStart(2, '0')}`
 }
+
+// Review's History list/detail date column — BM month names ("11 Ogos
+// 2026"), matching the app's Bahasa Melayu copy everywhere else.
+export function formatSessionDate(iso: string): string {
+  return new Date(iso).toLocaleDateString('ms-MY', { day: 'numeric', month: 'short', year: 'numeric' })
+}

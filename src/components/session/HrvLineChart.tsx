@@ -1,9 +1,9 @@
 import { buildLinePath } from '@/lib/chartMath'
-import type { HistoryPoint } from '@/lib/sessionStats'
+import type { SessionHistoryPoint } from '@/lib/sessionStats'
 import { ChartCard, ChartEmptyState } from '@/components/session/ChartCard'
 
 interface HrvLineChartProps {
-  history: HistoryPoint[]
+  history: SessionHistoryPoint[]
 }
 
 const WIDTH = 320

@@ -28,6 +28,19 @@ export interface SessionStats {
   zoneCounts: Record<'low' | 'medium' | 'high', number>
 }
 
+// The subset of HistoryPoint that actually gets persisted (see
+// sessionPersistence.ts's saveSession — history is trimmed to exactly
+// these three fields before insert) and the subset every consumer below
+// (computeSessionStats, CoherenceBandChart, HrvLineChart) actually reads.
+// A stored session's history loaded back from Supabase is *only* this
+// shape, not a full HistoryPoint (no `coherence`/`rmssdMs`) — declaring
+// consumers against this narrower type (rather than HistoryPoint) lets
+// Review's History detail view reuse them directly on real rows, with no
+// dummy fields needed. Live HistoryPoint[] still satisfies this type too
+// (structurally a superset), so nothing about the live-session call sites
+// changes.
+export type SessionHistoryPoint = Pick<HistoryPoint, 't' | 'coherenceAlt' | 'bpm'>
+
 const EMPTY_STATS: SessionStats = {
   avgCoherence: null,
   achievementPct: null,
@@ -45,7 +58,7 @@ const EMPTY_STATS: SessionStats = {
 // coherenceAlt ("Sumber"), matching the ring/flower formula standardization
 // on Skrin 1-3 — not point.coherence (the original computeCoherence value,
 // still present on HistoryPoint but no longer what this function reports).
-export function computeSessionStats(history: HistoryPoint[]): SessionStats {
+export function computeSessionStats(history: SessionHistoryPoint[]): SessionStats {
   if (history.length === 0) return EMPTY_STATS
 
   let coherenceSum = 0
