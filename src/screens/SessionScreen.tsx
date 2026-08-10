@@ -3,22 +3,34 @@ import ConnectScreen from '@/screens/ConnectScreen'
 import SessionCarousel from '@/components/session/SessionCarousel'
 import { useHrvSession } from '@/hooks/useHrvSession'
 import { useBreathingPacer } from '@/hooks/useBreathingPacer'
+import { useZoneDominance } from '@/hooks/useZoneDominance'
 import { recordSessionCompleted, isUnlockEligible } from '@/lib/unlockBonus'
 import type { LiveSessionData } from '@/screens/session/types'
 
 const INHALE_MS = 5000
 const EXHALE_MS = 5000
 
-// Session tab — a connect gate in front of the 4-page carousel. Both the
-// BLE/HRV stream (useHrvSession) and the breath pacer (useBreathingPacer)
-// are owned here, once, and passed down as one LiveSessionData bundle so
-// every carousel page (and a future swipe back to Skrin 1 mid-session)
-// reads the same live values instead of each re-deriving its own.
+// Session tab — a connect gate in front of the 4-page carousel. The
+// BLE/HRV stream (useHrvSession), the breath pacer (useBreathingPacer), AND
+// the zone-dominance ring tally (useZoneDominance) are all owned here,
+// once, and passed down as one LiveSessionData bundle so every carousel
+// page reads the same live values instead of each re-deriving its own.
+// useZoneDominance specifically used to be called separately inside
+// Page1Ring.tsx and Page2Mandala.tsx — two independent hook instances,
+// each running its own tally off its own effect, which could and did drift
+// out of sync with each other. Calling it once here and handing both pages
+// the same `zones` array is what actually guarantees they show identical
+// ring state at every instant, not just "the same formula."
 export default function SessionScreen() {
   const [started, setStarted] = useState(false)
   const [showUnlockBonus, setShowUnlockBonus] = useState(false)
   const hrv = useHrvSession()
   const pacer = useBreathingPacer({ inhaleMs: INHALE_MS, exhaleMs: EXHALE_MS, running: started })
+  // Standardized on coherenceLiveAlt (calm-breath-pulse's frequency-domain
+  // formula) as the single source driving the ring/flower everywhere it's
+  // shown — see the comment on `zones` in types.ts for what's NOT yet
+  // switched (Skrin 3/4).
+  const zones = useZoneDominance(hrv.elapsedSec, hrv.coherenceLiveAlt)
 
   const beginSession = () => {
     hrv.startSession()
@@ -54,6 +66,8 @@ export default function SessionScreen() {
     bpm: hrv.smoothedBpm,
     coherenceLive: hrv.coherenceLive,
     coherenceLiveAlt: hrv.coherenceLiveAlt,
+    coherenceAltReady: hrv.coherenceAltReady,
+    zones,
     history: hrv.history,
     elapsedSec: hrv.elapsedSec,
     contactLost: hrv.contactLost,

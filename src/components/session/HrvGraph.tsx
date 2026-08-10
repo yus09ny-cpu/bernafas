@@ -3,6 +3,7 @@
 // built in useHrvSession.ts from live BLE readings — never generated.
 import { useEffect, useRef, useState } from 'react'
 import type { Beat } from '@/lib/coherence'
+import { buildScrollingSegments } from '@/lib/scrollingLineChart'
 
 const WINDOW_SEC = 60
 const VB_W = 1000
@@ -11,8 +12,15 @@ const VB_H = 120
 /**
  * Real HRV tachogram: instantaneous heart rate (60000 / RR) plotted per beat
  * across a rolling 60-second window, scrolling right-to-left in real time.
+ *
+ * `color` is NOT part of the original calm-breath-pulse component — it
+ * defaults to unset, which keeps the original `text-primary`/light-edge-fade
+ * styling exactly as-is (Skrin 1/2, both on the app's fixed pastel
+ * background). Skrin 3 passes an explicit color (white) because it sits
+ * over an arbitrary user photo instead, where the default light-background
+ * fade and brand-teal line would be the wrong treatment entirely.
  */
-export function HrvGraph({ beats }: { beats: Beat[] }) {
+export function HrvGraph({ beats, color }: { beats: Beat[]; color?: string }) {
   const [now, setNow] = useState(() => Date.now())
   const rafRef = useRef<number>(0)
 
@@ -43,56 +51,37 @@ export function HrvGraph({ beats }: { beats: Beat[] }) {
     const pad = Math.max(3, (max - min) * 0.25)
     lo = min - pad
     hi = max + pad
-    const x = (t: number) => ((t - from) / (WINDOW_SEC * 1000)) * VB_W
-    const y = (hr: number) => VB_H - ((hr - lo) / (hi - lo || 1)) * VB_H
 
     // Real beats here are already artifact-filtered (see useHrvSession.ts) —
     // but real hardware still drops enough of them that consecutive accepted
-    // points can be several real seconds apart. Smoothly interpolating across
-    // a gap like that draws a fake "spike" between two beats that were never
-    // actually adjacent. Instead, break into a new subpath whenever the real
-    // gap is bigger than a plausible single dropped beat, so a dropout reads
-    // as a break in the line (like a real ECG strip), not a jagged curve.
-    const MAX_GAP_MS = 2500
-    const coordSegments: { x: number; y: number }[][] = []
-    let current: { x: number; y: number }[] = []
-    for (let i = 0; i < pts.length; i++) {
-      if (i > 0 && pts[i]!.t - pts[i - 1]!.t > MAX_GAP_MS) {
-        if (current.length > 1) coordSegments.push(current)
-        current = []
-      }
-      current.push({ x: x(pts[i]!.t), y: y(pts[i]!.hr) })
-    }
-    if (current.length > 1) coordSegments.push(current)
-
-    // Catmull-Rom-ish smoothing keeps beat detail without jagged corners.
-    const buildPath = (coords: { x: number; y: number }[]) => {
-      let d = `M ${coords[0]!.x.toFixed(1)} ${coords[0]!.y.toFixed(1)}`
-      for (let i = 1; i < coords.length; i++) {
-        const p = coords[i - 1]!
-        const c = coords[i]!
-        const mx = (p.x + c.x) / 2
-        d += ` C ${mx.toFixed(1)} ${p.y.toFixed(1)}, ${mx.toFixed(1)} ${c.y.toFixed(1)}, ${c.x.toFixed(1)} ${c.y.toFixed(1)}`
-      }
-      return d
-    }
-
-    path = coordSegments.map(buildPath).join(' ')
-    area = coordSegments
-      .map(coords => {
-        const d = buildPath(coords)
-        const last = coords[coords.length - 1]!
-        return `${d} L ${last.x.toFixed(1)} ${VB_H} L ${coords[0]!.x.toFixed(1)} ${VB_H} Z`
-      })
-      .join(' ')
+    // points can be several real seconds apart; buildScrollingSegments
+    // breaks the line at those dropouts instead of interpolating a fake
+    // spike across them (see scrollingLineChart.ts).
+    const result = buildScrollingSegments(
+      pts.map(p => ({ t: p.t, v: p.hr })),
+      { from, windowMs: WINDOW_SEC * 1000, width: VB_W, height: VB_H, minValue: lo, maxValue: hi, maxGapMs: 2500 },
+    )
+    path = result.path
+    area = result.area
   }
+
+  // Default (no color prop): original text-primary + light-background fade,
+  // pixel-identical to before this prop existed. Custom color (Skrin 3):
+  // inline `color` style overrides text-primary via currentColor, and the
+  // edge fades/labels switch to a dark scrim + white text, matching the
+  // same white-with-shadow treatment the rest of Skrin 3 already uses over
+  // its photo background.
+  const customColor = color !== undefined
+  const labelClass = customColor ? 'text-white' : 'text-muted-foreground'
+  const labelStyle = customColor ? { textShadow: '0 1px 4px rgba(0,0,0,0.4)' } : undefined
 
   return (
     <div className="relative h-28 w-full overflow-hidden">
       <svg
         viewBox={`0 0 ${VB_W} ${VB_H}`}
         preserveAspectRatio="none"
-        className="h-full w-full text-primary"
+        className={customColor ? 'h-full w-full' : 'h-full w-full text-primary'}
+        style={customColor ? { color } : undefined}
         role="img"
         aria-label="Graf HRV langsung: kadar denyutan sesaat"
       >
@@ -119,13 +108,22 @@ export function HrvGraph({ beats }: { beats: Beat[] }) {
         )}
       </svg>
 
-      <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-16 bg-gradient-to-r from-background to-transparent" />
-      <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-10 bg-gradient-to-l from-background to-transparent" />
-      <div className="pointer-events-none absolute left-0 top-0 z-20 text-[10px] uppercase tracking-widest text-muted-foreground">
+      {customColor ? (
+        <>
+          <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-16 bg-gradient-to-r from-black/35 to-transparent" />
+          <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-10 bg-gradient-to-l from-black/35 to-transparent" />
+        </>
+      ) : (
+        <>
+          <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-16 bg-gradient-to-r from-background to-transparent" />
+          <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-10 bg-gradient-to-l from-background to-transparent" />
+        </>
+      )}
+      <div className={`pointer-events-none absolute left-0 top-0 z-20 text-[10px] uppercase tracking-widest ${labelClass}`} style={labelStyle}>
         HRV · {WINDOW_SEC}s
       </div>
       {pts.length > 1 && (
-        <div className="pointer-events-none absolute right-1 top-0 z-20 text-[10px] tabular-nums text-muted-foreground">
+        <div className={`pointer-events-none absolute right-1 top-0 z-20 text-[10px] tabular-nums ${labelClass}`} style={labelStyle}>
           {Math.round(hi)}–{Math.round(lo)} bpm
         </div>
       )}

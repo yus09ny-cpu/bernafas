@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { cn } from '@/lib/utils'
 import { ZONE_COLOR, type CoherenceZone } from '@/lib/coherenceZones'
 import type { BreathPhase } from '@/hooks/useBreathingPacer'
+import { useBreathScaleAnimation } from '@/hooks/useBreathScaleAnimation'
 
 interface PulseDotProps {
   phase: BreathPhase
@@ -30,43 +31,51 @@ interface PulseDotProps {
 const BASE_BPM = 60
 const BASE_BEAT_DURATION_MS = (60 / BASE_BPM) * 1000
 
-// Breath-scale transition curve — pure CSS transition-timing-function, no
-// WAAPI involved. easeInOutSine: flatter through the middle and gentler
-// acceleration into/out of the phase-flip turnaround than the previous
-// easeInOutQuad (cubic-bezier(0.45, 0, 0.55, 1)), which reads as slightly
-// mechanical at the peak/trough. Swap this one constant to compare curves —
-// alternate worth trying: 'cubic-bezier(0.445, 0.05, 0.55, 0.95)' (an older,
-// commonly-cited "easeInOutSine" approximation pulled slightly off the 0/1
-// y-axis — marginally snappier through the middle, still much rounder than
-// the quad curve it's replacing).
-const BREATH_EASING = 'cubic-bezier(0.37, 0, 0.63, 1)' // easeInOutSine
+// Idle tick pace used whenever there's no reading yet (bpm === null) — see
+// "No reading yet" below.
+const IDLE_BPM = 12
 
-// Center dot for Skrin 1 (ring) — synced to *two* independent rhythms at
+// Ramp-in guard for the idle -> contact transition. When a finger first
+// makes contact, bpm flips from null straight to smoothedBpm's very first
+// post-contact value — and BpmSmoother's window is reset to empty on every
+// contact loss (useHrvSession.ts), so that first value is effectively
+// unsmoothed (a window of one sample). Feeding it straight into
+// updatePlaybackRate() jumps the heartbeat tick's speed from the idle rate
+// (IDLE_BPM/BASE_BPM = 0.2x) to a real-bpm rate (often ~1x+) in a single
+// step — a real, visible speed jerk right at the moment contact begins,
+// separate from (and not fixed by) the earlier duration-recompute bug fix.
+// This ramps the playback rate smoothly from the idle rate to the new
+// target over IDLE_TO_CONTACT_RAMP_MS instead of snapping it in one frame.
+// 2500ms is a first guess — long enough to span a couple of real packets at
+// typical BLE cadence (~1/beat) so the smoother has caught up by the time
+// the ramp ends, short enough not to read as sluggish. Revisit once real
+// [bpm-feed] data (see useHrvSession.ts) shows actual post-contact packet
+// timing/noise.
+const IDLE_TO_CONTACT_RAMP_MS = 2500
+
+// Center dot for Skrin 3 (scene) — synced to *two* independent rhythms at
 // once: the slow breath phase (scale, same expand-on-inhale/contract-on-
-// exhale as BreathOrb) and the fast heartbeat (a quick brightness/scale
-// "tick" once per beat, timed off the live BPM). zone is null pre-device/
-// pre-data and falls back to the brand teal rather than a zone color, since
-// there's no live coherence yet to color it by.
+// exhale as BreathOrb, and now the same shared mechanism FlowerBloom on
+// Skrin 2 uses — see useBreathScaleAnimation.ts / lib/breathAnimation.ts)
+// and the fast heartbeat (a quick brightness/scale "tick" once per beat,
+// timed off the live BPM). zone is null pre-device/pre-data and falls back
+// to the brand teal rather than a zone color, since there's no live
+// coherence yet to color it by.
 //
-// The two rhythms live on two *nested* elements, not one: a running CSS
-// `animation`/WAAPI animation fully overrides an element's `transform` for
-// as long as it's active, so a single div can't carry both the breath's
-// transition-based scale and the heartbeat's keyframe-based scale at once.
-// The outer wrapper below owns the slow breath transform; the sphere inside
-// it owns the fast heartbeat animation; nested transforms compose visually,
-// so the sphere visibly does both at once.
+// The two rhythms live on two *nested* elements, not one: a running WAAPI
+// animation fully overrides an element's `transform` for as long as it's
+// active, so a single div can't carry both the breath's scale and the
+// heartbeat's keyframe scale at once. The outer wrapper below owns the slow
+// breath animation; the sphere inside it owns the fast heartbeat animation;
+// nested transforms compose visually, so the sphere visibly does both at once.
 export default function PulseDot({ phase, phaseDurationMs, bpm, zone, size = 120, className }: PulseDotProps) {
-  // 1.4/0.7 — final value. History: 1.15/0.88 was confirmed *correct*
-  // (computed transform genuinely oscillates) but too subtle to notice;
-  // 1.25/0.85 was still too subtle on real hardware, which turned out to be
-  // a red herring — a real bug (useBreathingPacer's 100ms poll forcing a
-  // ~10Hz unconditional re-render floor, since fixed) was the actual cause,
-  // confirmed via a deliberately extreme 2.2/0.4 pushed to production,
-  // clearly visible. Dialed back to this range as noticeable-but-not-
-  // exaggerated once the underlying mechanism was proven sound end to end.
-  const breathScale = phase === 'in' ? 1.4 : 0.7
   const color = zone ? ZONE_COLOR[zone] : '#3e9c9c'
   const sphereSize = size * 0.56
+
+  // 1.4/0.7 scale range, easeInOutSine curve — shared with FlowerBloom, see
+  // lib/breathAnimation.ts for the tuning history behind these numbers.
+  const haloRef = useBreathScaleAnimation<HTMLDivElement>(phase, phaseDurationMs)
+  const breathWrapperRef = useBreathScaleAnimation<HTMLDivElement>(phase, phaseDurationMs)
 
   const sphereRef = useRef<HTMLDivElement>(null)
   const heartbeatAnimationRef = useRef<Animation | null>(null)
@@ -90,33 +99,77 @@ export default function PulseDot({ phase, phaseDurationMs, bpm, zone, size = 120
   }, [])
 
   // No reading yet: keep a slow idle tick alive rather than a static dot.
-  const effectiveBpm = bpm ?? 12
+  const effectiveBpm = bpm ?? IDLE_BPM
+
+  // Tracks whether the *previous* render had no reading (bpm === null), so
+  // the ramp-in guard below fires exactly on the idle->contact edge and
+  // never on ordinary bpm-to-bpm updates while contact is already held.
+  const wasIdleRef = useRef(true)
+  const rampFrameRef = useRef<number | null>(null)
+
   useEffect(() => {
-    heartbeatAnimationRef.current?.updatePlaybackRate(effectiveBpm / BASE_BPM)
-  }, [effectiveBpm])
+    const anim = heartbeatAnimationRef.current
+    if (!anim) return
+
+    const cameFromIdle = wasIdleRef.current && bpm !== null
+    wasIdleRef.current = bpm === null
+
+    if (rampFrameRef.current !== null) {
+      cancelAnimationFrame(rampFrameRef.current)
+      rampFrameRef.current = null
+    }
+
+    const targetRate = effectiveBpm / BASE_BPM
+
+    if (!cameFromIdle) {
+      // Ordinary update (already in contact, or the very first idle tick) —
+      // no known jump to guard against, snap as before. Whether *this* path
+      // also needs damping for ongoing per-packet noise is a separate,
+      // still-open question pending real [bpm-feed] hardware data.
+      anim.updatePlaybackRate(targetRate)
+      return
+    }
+
+    // Idle -> contact: ease the rate over from wherever it currently sits
+    // instead of snapping straight to the new target.
+    const fromRate = Number(anim.playbackRate ?? IDLE_BPM / BASE_BPM)
+    const start = performance.now()
+    const step = (now: number) => {
+      const t = Math.min(1, (now - start) / IDLE_TO_CONTACT_RAMP_MS)
+      const eased = t * t * (3 - 2 * t) // smoothstep — gentle at both ends
+      anim.updatePlaybackRate(fromRate + (targetRate - fromRate) * eased)
+      rampFrameRef.current = t < 1 ? requestAnimationFrame(step) : null
+    }
+    rampFrameRef.current = requestAnimationFrame(step)
+
+    return () => {
+      if (rampFrameRef.current !== null) {
+        cancelAnimationFrame(rampFrameRef.current)
+        rampFrameRef.current = null
+      }
+    }
+  }, [bpm, effectiveBpm])
 
   return (
     <div className={cn('relative flex items-center justify-center', className)} style={{ width: size, height: size }}>
       {/* Halo — slow, large expand/contract, kept for the depth it adds behind the sphere */}
       <div
+        ref={haloRef}
         className="absolute rounded-full"
         style={{
           width: size,
           height: size,
-          transform: `scale(${breathScale})`,
-          transition: `transform ${phaseDurationMs}ms ${BREATH_EASING}`,
           background: `radial-gradient(circle at center, ${color}33, ${color}08 70%, transparent 80%)`,
           willChange: 'transform',
         }}
       />
       {/* Breath wrapper — same slow scale as the halo, sized to the sphere */}
       <div
+        ref={breathWrapperRef}
         className="absolute rounded-full"
         style={{
           width: sphereSize,
           height: sphereSize,
-          transform: `scale(${breathScale})`,
-          transition: `transform ${phaseDurationMs}ms ${BREATH_EASING}`,
           willChange: 'transform',
         }}
       >

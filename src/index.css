@@ -33,6 +33,16 @@
   --color-text: #1e293b;
   --color-text-muted: #64748b;
   --color-border: #dce8e6;
+  /* Skrin 4's card border specifically — --color-border above measured at a
+     ~1.1-1.2:1 contrast ratio against both the white/70 card fill and the
+     page's own pastel gradient (verified with the WCAG relative-luminance
+     formula), i.e. essentially invisible; it was never designed to read as
+     a boundary, just an occasional subtle inline divider. This is
+     --color-primary-dark blended ~90% onto white — 4.04:1 against the card,
+     comfortably past the ~3:1 a UI component boundary needs to actually
+     read at a glance, while staying a soft brand teal rather than a harsh
+     dark line. */
+  --color-card-border: #418787;
 
   /* Coherence zones — kept in sync with src/lib/coherenceZones.ts (ZONE_COLOR).
      Duplicated here (rather than only in JS) so Tailwind arbitrary-value

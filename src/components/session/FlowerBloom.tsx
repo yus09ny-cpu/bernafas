@@ -1,5 +1,6 @@
 import { ZONE_COLOR } from '@/lib/coherenceZones'
 import type { BreathPhase } from '@/hooks/useBreathingPacer'
+import { useBreathScaleAnimation } from '@/hooks/useBreathScaleAnimation'
 
 interface FlowerBloomProps {
   coherence: number | null // 0-1, null pre-device/pre-data
@@ -34,29 +35,29 @@ function coherenceToColor(value: number): string {
 
 const PETAL_COUNT = 8
 
-// Animated flower — center content for Skrin 3, standing in where Skrin 1
-// uses PulseDot. Fullness (petal length + overall scale) and color both
-// track the live coherence score continuously; a gentle breath-synced
-// scale (same expand-on-inhale as PulseDot/BreathOrb) layers on top so it
-// never looks static between HRV updates, even pre-device.
+// Animated flower — center content for Skrin 2. Fullness (petal length +
+// overall scale) and color both track the live coherence score
+// continuously; a breath-synced scale layers on top so it never looks
+// static between HRV updates, even pre-device — now the exact same
+// WAAPI-driven mechanism as PulseDot's halo/breath-wrapper on Skrin 3 (see
+// useBreathScaleAnimation.ts / lib/breathAnimation.ts), not a separate,
+// smaller/slower CSS transition of its own. Only the breath *mechanism*
+// changed here — petal shape, fullness, and per-zone color are untouched.
 export default function FlowerBloom({ coherence, phase, phaseDurationMs, size = 200 }: FlowerBloomProps) {
   const c = coherence ?? 0.15 // gentle idle bud, not full bloom, before real data
   const color = coherenceToColor(c)
   const fullness = 0.45 + c * 0.55 // petal length as a fraction of size
-  const breathScale = phase === 'in' ? 1.08 : 0.94
   const center = size / 2
   const petalLength = center * fullness * 0.85
   const petalWidth = petalLength * 0.42
 
+  const breathRef = useBreathScaleAnimation<HTMLDivElement>(phase, phaseDurationMs)
+
   return (
     <div
+      ref={breathRef}
       className="relative flex items-center justify-center"
-      style={{
-        width: size,
-        height: size,
-        transform: `scale(${breathScale})`,
-        transition: `transform ${phaseDurationMs}ms cubic-bezier(0.45, 0, 0.55, 1)`,
-      }}
+      style={{ width: size, height: size }}
     >
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
         {Array.from({ length: PETAL_COUNT }, (_, i) => {

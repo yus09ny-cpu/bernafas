@@ -4,7 +4,7 @@ import { computeCoherence, computeRmssdMs } from '@/lib/hrvCoherence'
 import { BpmSmoother } from '@/lib/bpmSmoother'
 import { IbiArtifactFilter } from '@/lib/ibiArtifactFilter'
 import { getCoherenceZone } from '@/lib/coherenceZones'
-import { coherenceFromBeats, type Beat } from '@/lib/coherence'
+import { coherenceFromBeats, hasEnoughDataForCoherence, type Beat } from '@/lib/coherence'
 import type { HistoryPoint } from '@/lib/sessionStats'
 import type { DeviceStatus, HeartRateDevice } from '@/hooks/useHeartRateDevice'
 
@@ -57,6 +57,12 @@ export function useHrvSession() {
   // sessionStats.ts; computeCoherence (hrvCoherence.ts) stays authoritative
   // there.
   const [coherenceLiveAlt, setCoherenceLiveAlt] = useState<number | null>(null)
+  // True once coherenceFromBeats has cleared its own ~20-30s/20-beat data
+  // floor and coherenceLiveAlt reflects a real computed value, not the
+  // floor's 0. Powers the "Mengkalibrasi…" message on Skrin 1-3 — false
+  // (never shown as a real reading) for the whole calibration window, even
+  // though coherenceLiveAlt itself is a non-null 0 for most of that time.
+  const [coherenceAltReady, setCoherenceAltReady] = useState(false)
 
   const smootherRef = useRef<BpmSmoother | null>(null)
   const artifactFilterRef = useRef<IbiArtifactFilter | null>(null)
@@ -182,6 +188,7 @@ export function useHrvSession() {
         const alt = coherenceFromBeats(capped, now)
         coherenceAltRef.current = alt
         setCoherenceLiveAlt(alt)
+        setCoherenceAltReady(hasEnoughDataForCoherence(capped, now))
       }
       if (liveRrRef.current.length >= 3) {
         const coherence = computeCoherence(liveRrRef.current)
@@ -225,6 +232,7 @@ export function useHrvSession() {
     setBeats([])
     coherenceAltRef.current = null
     setCoherenceLiveAlt(null)
+    setCoherenceAltReady(false)
     acceptedCountRef.current = 0
     rejectedCountRef.current = 0
     setSessionActive(true)
@@ -244,7 +252,10 @@ export function useHrvSession() {
   // coherence exists (i.e. only for sessions using a device). rmssdMs is
   // computed off the same rolling R-R window coherenceLive was just derived
   // from, so the ring, the live score, and this sample never disagree about
-  // "right now."
+  // "right now." coherenceAlt reuses coherenceAltRef.current — the exact
+  // same continuously-updated value coherenceLiveAlt itself displays,
+  // rather than recomputing coherenceFromBeats independently here on a
+  // different cadence/timestamp.
   useEffect(() => {
     if (!sessionActive) return
     const id = window.setInterval(() => {
@@ -252,7 +263,7 @@ export function useHrvSession() {
       const t = Math.round((performance.now() - sessionStartRef.current) / 1000)
       const coherence = computeCoherence(liveRrRef.current)
       const rmssdMs = computeRmssdMs(liveRrRef.current)
-      setHistory(prev => [...prev, { t, coherence, bpm: smoothedBpmRef.current, rmssdMs }])
+      setHistory(prev => [...prev, { t, coherence, coherenceAlt: coherenceAltRef.current, bpm: smoothedBpmRef.current, rmssdMs }])
     }, HISTORY_SAMPLE_MS)
     return () => window.clearInterval(id)
   }, [sessionActive])
@@ -290,6 +301,7 @@ export function useHrvSession() {
     smoothedBpm,
     coherenceLive,
     coherenceLiveAlt,
+    coherenceAltReady,
     contactLost,
     sensorContact,
     sessionActive,

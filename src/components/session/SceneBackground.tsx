@@ -1,12 +1,27 @@
-// Full-bleed calming backdrop for Skrin 2 ("Scene"). The brief asks for
-// "Bernafas branded imagery" — there is no photography asset in this repo
-// yet (public/ only has favicon.svg), and fabricating a stock photo URL
-// would be a fake asset masquerading as branded content. This is a
-// generated abstract scene built purely from the existing palette tokens
-// (index.css @theme) instead: soft drifting light + a horizon, no external
-// requests. Swap for a real photographed/illustrated scene asset later by
-// replacing this component's body — every page that renders it stays the same.
-export default function SceneBackground() {
+// Full-bleed calming backdrop for Skrin 3 ("Scene"). The brief originally
+// asked for "Bernafas branded imagery" with no photography asset in the
+// repo — this generated abstract scene (soft drifting light + a horizon,
+// built purely from the existing palette tokens, no external requests)
+// was the fallback for that. It's still the default: a user can now
+// replace it with their own photo (see useSceneImage.ts / Page3Scene.tsx),
+// passed in here as `imageDataUrl`.
+export default function SceneBackground({ imageDataUrl }: { imageDataUrl?: string | null }) {
+  if (imageDataUrl) {
+    return (
+      <div className="absolute inset-0 -z-10 overflow-hidden" aria-hidden="true">
+        <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url(${imageDataUrl})` }} />
+        {/* Legibility overlay — a user's own photo can be any brightness or
+            contrast; this keeps the white waveform/pulse-dot/labels
+            readable over it regardless of what they picked, same purpose
+            the generated scene's horizon gradient already served below. */}
+        <div
+          className="absolute inset-0"
+          style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0.28) 0%, rgba(0,0,0,0.06) 35%, rgba(0,0,0,0.34) 100%)' }}
+        />
+      </div>
+    )
+  }
+
   return (
     <div className="absolute inset-0 -z-10 overflow-hidden" aria-hidden="true">
       <div

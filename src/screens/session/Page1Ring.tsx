@@ -1,72 +1,12 @@
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { HrvGraph } from '@/components/session/HrvGraph'
-import { SegmentedRing, SEGMENT_COUNT, type Zone } from '@/components/session/SegmentedRing'
+import { SegmentedRing } from '@/components/session/SegmentedRing'
 import { PulsingSphere } from '@/components/session/PulsingSphere'
 import { SmoothnessSetting } from '@/components/session/SmoothnessSetting'
 import { DeviceConnect } from '@/components/session/DeviceConnect'
+import BreathPhaseLabel from '@/components/session/BreathPhaseLabel'
 import { getCoherenceZone, ZONE_COLOR } from '@/lib/coherenceZones'
 import type { LiveSessionData } from './types'
-
-const PHASE_LABEL: Record<'in' | 'out', string> = {
-  in: 'Tarik Nafas',
-  out: 'Hembus Nafas',
-}
-
-// Zone-DOMINANCE tally for the ring (HeartMath Inner Balance–style), not a
-// time-locked history — replaces the earlier "each segment locks in the
-// zone it had when reached" design entirely. Every real second (elapsedSec
-// ticks once/sec in useHrvSession.ts) is credited to whichever zone
-// coherenceLiveAlt was in at that moment; `zones` below is recomputed from
-// the *running proportions* of that tally on every tick, not appended to.
-// A session that's spent 70% of its time so far in 'high' will always show
-// ~70% of the 36 ticks as green, redistributed live as the ratio shifts —
-// there's no concept of an individual tick "belonging" to a past moment.
-//
-// Fixed low->medium->high layout order (not reordered by which zone
-// currently dominates) so the ring doesn't reshuffle position as ratios
-// change, only grow/shrink each arc in place — SegmentedRing.tsx turns
-// this zones[] array into the actual grouped-arc rendering with gaps.
-//
-// Time not yet classified (coherenceLiveAlt still null — before the first
-// accepted beat of the session) isn't credited to any zone; while zero
-// seconds are tallied at all, this returns 36 'idle' entries.
-function useZoneDominance(elapsedSec: number, coherenceLiveAlt: number | null): Zone[] {
-  const secondsRef = useRef({ low: 0, medium: 0, high: 0 })
-  const lastElapsedRef = useRef(0)
-  const coherenceRef = useRef(coherenceLiveAlt)
-  coherenceRef.current = coherenceLiveAlt
-  const [, bump] = useState(0)
-
-  useEffect(() => {
-    const delta = elapsedSec - lastElapsedRef.current
-    lastElapsedRef.current = elapsedSec
-    if (delta > 0 && coherenceRef.current !== null) {
-      secondsRef.current[getCoherenceZone(coherenceRef.current)] += delta
-    }
-    bump(n => n + 1) // secondsRef itself isn't state — force the re-render this tally update needs
-  }, [elapsedSec])
-
-  const { low, medium, high } = secondsRef.current
-  const total = low + medium + high
-  if (total <= 0) return Array<Zone>(SEGMENT_COUNT).fill('idle')
-
-  // Largest-remainder apportionment — the only rounding method here that's
-  // guaranteed to sum back to exactly SEGMENT_COUNT ticks.
-  const raw = { low: (low / total) * SEGMENT_COUNT, medium: (medium / total) * SEGMENT_COUNT, high: (high / total) * SEGMENT_COUNT }
-  const floor = { low: Math.floor(raw.low), medium: Math.floor(raw.medium), high: Math.floor(raw.high) }
-  const remainder = SEGMENT_COUNT - (floor.low + floor.medium + floor.high)
-  const byFraction = (['low', 'medium', 'high'] as const)
-    .map(z => ({ z, frac: raw[z] - floor[z] }))
-    .sort((a, b) => b.frac - a.frac)
-  const counts = { ...floor }
-  for (let i = 0; i < remainder; i++) counts[byFraction[i]!.z]++
-
-  return [
-    ...Array<Zone>(counts.low).fill('low'),
-    ...Array<Zone>(counts.medium).fill('medium'),
-    ...Array<Zone>(counts.high).fill('high'),
-  ]
-}
 
 // Skrin 1 — ported wholesale from calm-breath-pulse's session screen
 // (SegmentedRing + PulsingSphere + HrvGraph + SmoothnessSetting +
@@ -81,22 +21,29 @@ function useZoneDominance(elapsedSec: number, coherenceLiveAlt: number | null): 
 // Everything else — the ring/sphere visuals, the WAAPI animations, the
 // smoothness setting, the device-connect affordance — is unedited.
 export default function Page1Ring({ data }: { data: LiveSessionData }) {
-  // Ring + sphere color are driven by coherenceLiveAlt (calm-breath-pulse's
-  // own frequency-domain formula, "Sumber" below) rather than Bernafas's
-  // computeCoherence — per the ongoing A/B comparison, this is the formula
-  // being evaluated for Skrin 1 specifically. Nothing else in the app
-  // changes: Skrin 2/3/4, sessionStats.ts, and the achievement/summary
-  // calculations all still read coherenceLive (computeCoherence) exactly as
-  // before. coherenceFromBeats needs ~20-30s of real beats before it
-  // returns anything but 0, so the ring/sphere will show red/idle for the
-  // first half-minute of every session — expected, not a bug.
-  const zones = useZoneDominance(data.elapsedSec, data.coherenceLiveAlt)
+  // `data.zones` is the single shared zone-dominance tally — computed once
+  // in SessionScreen.tsx (useZoneDominance off coherenceLiveAlt) and handed
+  // to both this page and Page2Mandala, so their rings can never drift
+  // apart the way two independent hook instances used to. Ring + sphere
+  // color are driven by coherenceLiveAlt (calm-breath-pulse's own
+  // frequency-domain formula, "Sumber" below) — now the standardized
+  // formula for the ring/flower app-wide (Skrin 1 and 2); Skrin 3/4 still
+  // show a few coherenceLive-derived things, flagged but not yet switched
+  // (see types.ts). coherenceFromBeats needs ~20-30s of real beats before
+  // it returns anything but 0, so the ring/sphere will show red/idle for
+  // the first half-minute of every session — expected, not a bug.
+  const { zones } = data
   const [smoothness, setSmoothness] = useState(1)
   // Zone-colors the sphere (see PulsingSphere's `color` prop) — same
   // getCoherenceZone/ZONE_COLOR pipeline as the ring segments and as
   // Bernafas's own PulseDot on Skrin 2, so all three agree on what "red"
   // looks like.
   const zone = data.coherenceLiveAlt !== null ? getCoherenceZone(data.coherenceLiveAlt) : null
+  // "Mengkalibrasi…" overrides the phase label + subtitle for the ~20-30s
+  // window where coherenceLiveAlt is a non-null 0 (coherenceFromBeats'
+  // floor) rather than a real reading — contactLost takes priority since
+  // that's a more urgent, different message. See BreathPhaseLabel.tsx.
+  const calibrating = data.coherenceLiveAlt !== null && !data.coherenceAltReady && !data.contactLost
 
   return (
     <div
@@ -130,22 +77,24 @@ export default function Page1Ring({ data }: { data: LiveSessionData }) {
         </SegmentedRing>
 
         <div className="flex flex-col items-center gap-1">
-          <span className="text-xl font-bold tracking-wide text-[var(--color-primary-dark)]">{PHASE_LABEL[data.phase]}</span>
-          <span className="text-xs text-[var(--color-text-muted)]">
-            {data.contactLost
-              ? 'Tiada bacaan — letak jari pada sensor'
-              : data.coherenceLiveAlt !== null
-              ? `Skor live: ${Math.round(data.coherenceLiveAlt * 100)}`
-              : data.isDeviceConnected
-              ? 'Mengumpul bacaan HRV...'
-              : 'Ikut bulatan — kembang saat tarik, kecut saat hembus'}
-          </span>
-          {/* TEMP — Skrin-1-only A/B comparison. The ring/sphere/"Skor live"
-              above are all now driven by coherenceLiveAlt (calm-breath-pulse's
-              frequency-domain formula, labeled "Sumber" would be redundant
-              with the score already shown above — this row is just the
-              secondary RMSSD reference for comparison). Remove once the
-              formula question is settled — see src/lib/coherence.ts. */}
+          <BreathPhaseLabel
+            phase={data.phase}
+            calibrating={calibrating}
+            subtitle={
+              data.contactLost
+                ? 'Tiada bacaan — letak jari pada sensor'
+                : data.coherenceLiveAlt !== null
+                ? `Skor live: ${Math.round(data.coherenceLiveAlt * 100)}`
+                : data.isDeviceConnected
+                ? 'Mengumpul bacaan HRV...'
+                : 'Ikut bulatan — kembang saat tarik, kecut saat hembus'
+            }
+          />
+          {/* TEMP — Skrin-1-only A/B comparison reference. Stays visible
+              during calibration too — computeCoherence doesn't share
+              coherenceFromBeats' data floor, so it's already a real reading
+              by then. Remove once the formula question is fully settled —
+              see src/lib/coherence.ts. */}
           <span
             className="mt-0.5 text-[10px] tabular-nums text-[var(--color-text-muted)]"
             style={{ color: data.coherenceLive !== null ? ZONE_COLOR[getCoherenceZone(data.coherenceLive)] : undefined }}

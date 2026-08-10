@@ -1,10 +1,12 @@
 import { computeSessionStats } from '@/lib/sessionStats'
 import StatBar from '@/components/session/StatBar'
 import HrvLineChart from '@/components/session/HrvLineChart'
+import { HrvGraph } from '@/components/session/HrvGraph'
 import CoherenceBandChart from '@/components/session/CoherenceBandChart'
 import RmssdTrendChart from '@/components/session/RmssdTrendChart'
 import PulseReadout from '@/components/session/PulseReadout'
 import UnlockBonusCard from '@/components/UnlockBonusCard'
+import { ChartCard } from '@/components/session/ChartCard'
 import type { LiveSessionData } from './types'
 
 // Skrin 4 — the only carousel page that scrolls vertically instead of
@@ -30,11 +32,22 @@ export default function Page4Summary({ data }: { data: LiveSessionData }) {
       {usedDevice ? (
         <>
           <HrvLineChart history={data.history} />
+          {/* Live, last-60s companion to "Nadi sepanjang sesi" right above —
+              the exact same HrvGraph component/data/call pattern as Skrin
+              1-3 (beats={data.beats}, no color prop, same as Skrin 1/2's
+              usage), just placed here too. Previously this showed a live
+              *coherence* graph instead — replaced per your ask, since you
+              want the same raw per-beat HR data Skrin 1-3 show, not a
+              second coherence view. Title updated from "Koheren Langsung"
+              to match what it's actually plotting now. */}
+          <ChartCard title="HRV Langsung (60 saat)">
+            <HrvGraph beats={data.beats} />
+          </ChartCard>
           <CoherenceBandChart history={data.history} />
           <RmssdTrendChart history={data.history} />
         </>
       ) : (
-        <div className="flex w-full flex-col items-center gap-2 rounded-2xl bg-white/60 px-6 py-8 text-center">
+        <div className="flex w-full flex-col items-center gap-2 rounded-2xl border border-[var(--color-card-border)] bg-white/60 px-6 py-8 text-center shadow-[var(--shadow-soft)]">
           <span className="text-sm text-[var(--color-text)]">Sesi tanpa peranti HRV</span>
           <span className="max-w-xs text-xs text-[var(--color-text-muted)]">
             Sambungkan peranti HRV pada sesi akan datang untuk lihat carta HRV anda.

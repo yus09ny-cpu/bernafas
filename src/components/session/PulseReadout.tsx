@@ -11,7 +11,7 @@ interface PulseReadoutProps {
 // glanceable single value).
 export default function PulseReadout({ currentBpm, stats }: PulseReadoutProps) {
   return (
-    <div className="flex w-full items-center justify-center gap-6 rounded-2xl bg-white/70 px-6 py-4">
+    <div className="flex w-full items-center justify-center gap-6 rounded-2xl border border-[var(--color-card-border)] bg-white/70 px-6 py-4 shadow-[var(--shadow-soft)]">
       <div className="flex items-center gap-2">
         <Heart size={18} className="text-[var(--color-warm)]" fill="currentColor" />
         <span className="text-2xl font-extrabold tabular-nums text-[var(--color-primary-dark)]">

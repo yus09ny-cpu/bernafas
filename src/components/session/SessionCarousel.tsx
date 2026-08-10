@@ -2,8 +2,8 @@ import { useRef, useState } from 'react'
 import SessionHeader from '@/components/session/SessionHeader'
 import DotIndicator from '@/components/session/DotIndicator'
 import Page1Ring from '@/screens/session/Page1Ring'
-import Page2Scene from '@/screens/session/Page2Scene'
-import Page3Mandala from '@/screens/session/Page3Mandala'
+import Page2Mandala from '@/screens/session/Page2Mandala'
+import Page3Scene from '@/screens/session/Page3Scene'
 import Page4Summary from '@/screens/session/Page4Summary'
 import type { LiveSessionData } from '@/screens/session/types'
 
@@ -49,10 +49,10 @@ export default function SessionCarousel({ data, onEndSession }: SessionCarouselP
           <Page1Ring data={data} />
         </div>
         <div className="h-full w-full shrink-0 snap-start snap-always">
-          <Page2Scene data={data} />
+          <Page2Mandala data={data} />
         </div>
         <div className="h-full w-full shrink-0 snap-start snap-always">
-          <Page3Mandala data={data} />
+          <Page3Scene data={data} />
         </div>
         <div className="h-full w-full shrink-0 snap-start snap-always">
           <Page4Summary data={data} />

@@ -1,16 +1,21 @@
-// Skrin 1's ring — redesigned from a time-locked history dial into a
-// HeartMath Inner Balance–style "zone dominance" ring: 36 ticks, grouped
-// into three contiguous arcs (red/blue/green) sized by how much of the
-// session-so-far has been spent in each coherence zone, not by *when* each
-// tick was reached. The live tally that produces the `zones` array below
-// lives in Page1Ring.tsx (useZoneDominance) — this component only knows how
-// to lay out whatever zones[] it's handed as 36 ticks with a bigger gap at
-// each of the (up to three) zone-group boundaries and a small gap between
-// ticks of the same zone, so same-zone runs read as one solid arc.
+// The zone-dominance ring — originally built for Skrin 1, now shared with
+// Skrin 2's flower/mandala page too: 36 ticks, grouped into three
+// contiguous arcs (red/blue/green) sized by how much of the session-so-far
+// has been spent in each coherence zone, not by *when* each tick was
+// reached. The live tally that produces the `zones` array below lives in
+// useZoneDominance.ts (each page calls it with its own live coherence
+// source) — this component only knows how to lay out whatever zones[] it's
+// handed as 36 ticks with a bigger gap at each of the (up to three)
+// zone-group boundaries and a small gap between ticks of the same zone, so
+// same-zone runs read as one solid arc.
 //
-// NOT shared with Skrin 3 — Page3Mandala.tsx uses the separate, untouched
-// SegmentedCoherenceRing.tsx (Bernafas's own original time-locked ring).
-// This file only ever backs Skrin 1's Page1Ring.
+// Bernafas's original SegmentedCoherenceRing.tsx (the time-locked dial) is
+// no longer used by either page as of this swap — left in place rather than
+// deleted, in case it's wanted again.
+//
+// `size` defaults to 320 (Skrin 1's exact original, unparameterized value —
+// passing nothing here changes nothing there); Skrin 2 passes a larger size
+// to give its bigger, breath-scaled FlowerBloom more inner clearance.
 import { ZONE_COLOR, type CoherenceZone } from '@/lib/coherenceZones'
 
 export const SEGMENT_COUNT = 36
@@ -57,11 +62,21 @@ function tickRectProps(cx: number, cy: number, r: number, angleDeg: number, leng
   }
 }
 
-export function SegmentedRing({ zones, children }: { zones: Zone[]; children?: React.ReactNode }) {
-  const size = 320
+export function SegmentedRing({
+  zones,
+  children,
+  size = 320,
+}: {
+  zones: Zone[]
+  children?: React.ReactNode
+  size?: number
+}) {
   const c = size / 2
-  const radius = 138
-  const tickThickness = 18 // radial
+  // Proportional to `size` at exactly the ratios the original fixed
+  // 320/138/18 numbers had, so the default case is pixel-identical to
+  // before parameterizing this.
+  const radius = size * 0.43125 // 138 at size=320
+  const tickThickness = size * 0.05625 // 18 at size=320 — radial
 
   // Gap BEFORE each tick: bigger if this tick starts a new zone group than
   // the one before it (wrapping around from the last tick back to the

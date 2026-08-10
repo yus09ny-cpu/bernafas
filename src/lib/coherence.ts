@@ -1,15 +1,12 @@
 // Ported from calm-breath-pulse's src/lib/coherence.ts. `Beat` was already
 // here (needed for HrvGraph.tsx's import path). `bpmFromBeats` and
-// `coherenceFromBeats` are now ALSO ported, verbatim, specifically to power
-// a Skrin-1-only side-by-side comparison against Bernafas's own
-// computeCoherence (hrvCoherence.ts) — see useHrvSession.ts's
-// `coherenceLiveAlt`. This is deliberately NOT wired into Skrin 2/3/4 or
-// sessionStats.ts, which still read only computeCoherence: the point of
-// this file, for now, is to let the two formulas be watched live on the
-// same real (artifact-filtered) beat stream to see how much of the
-// red-never-showing gap is the formula itself vs. the artifact filter.
-// Remove `bpmFromBeats`/`coherenceFromBeats` (and coherenceLiveAlt) once
-// that comparison concludes and one formula is picked for good.
+// `coherenceFromBeats` were ported in for a Skrin-1-only A/B comparison
+// against Bernafas's own computeCoherence (hrvCoherence.ts) — that
+// comparison concluded and coherenceFromBeats ("Sumber") is now the
+// standardized formula for the ring/flower/Skrin-4-stats app-wide (see
+// useHrvSession.ts's coherenceLiveAlt and its consumers). computeCoherence
+// is still computed and still shown as a secondary reference number in a
+// couple of places, but no longer drives anything visual on its own.
 
 export type Beat = { t: number; rr: number }
 
@@ -32,6 +29,20 @@ export function bpmFromBeats(beats: Beat[], lastN = 5): number {
   if (!recent.length) return 0
   const mean = recent.reduce((s, b) => s + b.rr, 0) / recent.length
   return mean > 0 ? Math.round(60000 / mean) : 0
+}
+
+// Same two gates coherenceFromBeats checks before it'll return anything but
+// its 0 floor (≥20 accepted beats within the window, spanning ≥20s) —
+// extracted so callers can tell "genuinely low" apart from "not enough data
+// yet" without duplicating (and risking drifting from) those numbers. Powers
+// the "Mengkalibrasi…" message on Skrin 1-3 (see useHrvSession.ts's
+// coherenceAltReady).
+export function hasEnoughDataForCoherence(beats: Beat[], now = Date.now()): boolean {
+  const from = now - WINDOW_SEC * 1000
+  const pts = beats.filter(b => b.t >= from && b.rr > 300 && b.rr < 2000)
+  if (pts.length < 20) return false
+  const span = (pts[pts.length - 1]!.t - pts[0]!.t) / 1000
+  return span >= 20
 }
 
 /** Returns 0..1. Needs ~30s of beats before it is meaningful. */

@@ -18,8 +18,14 @@ const PAD_Y = 6
 // as a line, mirroring HeartMath Inner Balance's Coherence tab. The bands
 // are a *status* encoding (never color alone, per the dataviz skill) — the
 // legend row below always pairs each color with its BM label.
+//
+// Plots coherenceAlt ("Sumber"), not the original coherence field — matches
+// the formula standardization on Skrin 1-3's ring/flower. coherenceAlt can
+// be null on a rare early sample; filtered out (like HrvLineChart/
+// RmssdTrendChart already do for their own nullable fields) rather than
+// defaulted to 0, so a missing reading doesn't draw a fake dip.
 export default function CoherenceBandChart({ history }: CoherenceBandChartProps) {
-  const points = history.map(p => ({ t: p.t, value: p.coherence }))
+  const points = history.filter(p => p.coherenceAlt !== null).map(p => ({ t: p.t, value: p.coherenceAlt as number }))
   const innerHeight = HEIGHT - PAD_Y * 2
   const yFromValue = (v: number) => HEIGHT - PAD_Y - v * innerHeight
 
