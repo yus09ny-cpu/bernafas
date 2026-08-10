@@ -1,5 +1,9 @@
 @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&display=swap');
 @import "tailwindcss";
+/* Powers the data-[state=...]:animate-in/out utilities used by the ported
+   shadcn Popover (Skrin 1's SmoothnessSetting) — same package
+   calm-breath-pulse itself depends on for this. */
+@import "tw-animate-css";
 
 :root {
   --safe-top: env(safe-area-inset-top, 0px);
@@ -45,6 +49,34 @@
   --color-nav-inactive: #7c9390;
 
   --font-sans: 'Manrope', system-ui, sans-serif;
+
+  /* shadcn-convention tokens — only added because the calm-breath-pulse
+     components ported into Skrin 1 (SegmentedRing/PulsingSphere/HrvGraph/
+     DeviceConnect/SmoothnessSetting + the ui/popover, ui/slider primitives
+     they use) are written against these class names (bg-card, bg-popover,
+     text-muted-foreground, etc). Mapped to Bernafas's own existing brand
+     colors above, not a second competing palette. */
+  --color-background: var(--color-bg-top);
+  --color-foreground: var(--color-text);
+  --color-card: var(--color-surface);
+  --color-card-foreground: var(--color-text);
+  --color-popover: var(--color-surface);
+  --color-popover-foreground: var(--color-text);
+  --color-primary-foreground: #ffffff;
+  --color-muted-foreground: var(--color-text-muted);
+  --color-destructive: var(--color-warm);
+  --color-ring: var(--color-primary);
+}
+
+/* Bare (non-@theme) custom properties — referenced via var(...) in arbitrary
+   Tailwind values (bg-[image:var(--x)], shadow-[var(--x)]) by the ported
+   Skrin 1 components above, copied from calm-breath-pulse's own design
+   tokens since these are the actual visuals being preserved wholesale. */
+:root {
+  --shadow-soft: 0 6px 20px -8px oklch(0.45 0.06 225 / 0.28);
+  --shadow-glow: 0 0 60px -6px oklch(0.7 0.1 210 / 0.55);
+  --gradient-sphere: radial-gradient(circle at 34% 28%, oklch(0.95 0.03 200) 0%, oklch(0.8 0.08 205) 38%, oklch(0.62 0.11 225) 100%);
+  --gradient-sphere-sheen: radial-gradient(circle at 70% 78%, oklch(0.99 0.01 200 / 0.35) 0%, transparent 55%);
 }
 
 /* Hide the scrollbar on the session carousel's scroll-snap track — the dot

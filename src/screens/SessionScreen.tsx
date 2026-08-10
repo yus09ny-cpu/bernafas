@@ -53,6 +53,7 @@ export default function SessionScreen() {
   const data: LiveSessionData = {
     bpm: hrv.smoothedBpm,
     coherenceLive: hrv.coherenceLive,
+    coherenceLiveAlt: hrv.coherenceLiveAlt,
     history: hrv.history,
     elapsedSec: hrv.elapsedSec,
     contactLost: hrv.contactLost,
@@ -62,6 +63,11 @@ export default function SessionScreen() {
     phaseDurationMs: pacer.phase === 'in' ? INHALE_MS : EXHALE_MS,
     cycleCount: pacer.cycleCount,
     showUnlockBonus,
+    beats: hrv.beats,
+    device: hrv.device,
+    simulated: hrv.simulated,
+    sensorContact: hrv.sensorContact,
+    breathCount: pacer.breathCount,
   }
 
   // Ending a session doesn't unmount the carousel — it stops sampling

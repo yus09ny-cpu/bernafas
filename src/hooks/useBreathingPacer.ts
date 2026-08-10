@@ -16,6 +16,16 @@ interface BreathingPacerState {
   phase: BreathPhase
   // completed inhale+exhale pairs since running went true.
   cycleCount: number
+  // Length of the *current* phase in ms — needed by calm-breath-pulse's
+  // ported PulsingSphere (Skrin 1) to size its WAAPI breath cycle. Existing
+  // callers (SessionScreen.tsx) already compute this themselves from
+  // phase+inhaleMs/exhaleMs; this is just that same derivation surfaced on
+  // the hook's own return value so a new consumer doesn't need to duplicate it.
+  phaseDurationMs: number
+  // 1-indexed "current breath number" (cycleCount + 1) — same value
+  // Page1Ring.tsx already displayed as `cycleCount + 1`, now named to match
+  // what the ported PulsingSphere/footer code expects.
+  breathCount: number
 }
 
 const DEFAULT_INHALE_MS = 5000
@@ -69,5 +79,10 @@ export function useBreathingPacer(options?: UseBreathingPacerOptions): Breathing
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [running, inhaleMs, exhaleMs])
 
-  return { phase, cycleCount }
+  return {
+    phase,
+    cycleCount,
+    phaseDurationMs: phase === 'in' ? inhaleMs : exhaleMs,
+    breathCount: cycleCount + 1,
+  }
 }
