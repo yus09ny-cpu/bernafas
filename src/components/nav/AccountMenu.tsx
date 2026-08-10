@@ -1,0 +1,65 @@
+import { useState } from 'react'
+import { DoorOpen, LogOut } from 'lucide-react'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { useAuth } from '@/hooks/useAuth'
+
+// Persistent account affordance, rendered once in App.tsx (not per-screen)
+// so it's reachable from every tab, not just one — the sign-out action has
+// nowhere else to live since BottomNav's five slots are all taken by
+// content tabs. Fixed top-LEFT (not top-right, deliberately) + a door/exit
+// glyph (not Settings2's sliders) — Skrin 1's SmoothnessSetting already
+// occupies top-right with that exact sliders icon, and this is a
+// meaningful, one-way action (sign out) sitting right next to a harmless
+// preference toggle. Same corner+same icon would make the two easy to
+// mis-tap for each other; different icon AND different corner removes
+// that ambiguity twice over rather than relying on just one.
+export default function AccountMenu() {
+  const { session, signOut } = useAuth()
+  const [open, setOpen] = useState(false)
+  const [signingOut, setSigningOut] = useState(false)
+
+  const handleSignOut = async () => {
+    if (signingOut) return
+    setSigningOut(true)
+    await signOut()
+    // No manual navigation back to AuthScreen needed — App.tsx's
+    // useAuth().status flips to 'signed-out' via onAuthStateChange the
+    // instant this resolves, which is already its render gate.
+    setOpen(false)
+    setSigningOut(false)
+  }
+
+  return (
+    <div
+      className="fixed left-4 z-50"
+      style={{ top: 'calc(1rem + var(--safe-top))' }}
+    >
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger
+          aria-label="Akaun"
+          className="grid size-10 place-items-center rounded-full bg-card/70 text-muted-foreground shadow-[var(--shadow-soft)] backdrop-blur transition-colors hover:text-foreground"
+        >
+          <DoorOpen className="size-5" />
+        </PopoverTrigger>
+        <PopoverContent align="start" className="w-56">
+          <div className="space-y-3">
+            {session?.user.email && (
+              <p className="truncate text-xs text-muted-foreground" title={session.user.email}>
+                {session.user.email}
+              </p>
+            )}
+            <button
+              type="button"
+              onClick={handleSignOut}
+              disabled={signingOut}
+              className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm font-medium text-foreground transition-colors hover:bg-[var(--color-warm)]/10 hover:text-[var(--color-warm)] disabled:opacity-50"
+            >
+              <LogOut className="size-4" />
+              {signingOut ? 'Log keluar...' : 'Log keluar'}
+            </button>
+          </div>
+        </PopoverContent>
+      </Popover>
+    </div>
+  )
+}

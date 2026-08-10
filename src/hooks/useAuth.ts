@@ -52,9 +52,32 @@ export function useAuth() {
     return true
   }, [])
 
+  const signInWithGoogle = useCallback(async () => {
+    setError(null)
+    const { error: oauthError } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        // Same redirect target as sendMagicLink above — must be in the
+        // project's Auth > URL Configuration allow-list or Supabase falls
+        // back to its default Site URL instead of this one.
+        redirectTo: window.location.origin,
+      },
+    })
+    if (oauthError) {
+      setError(oauthError.message)
+      return false
+    }
+    // No setStatus('link-sent') here: unlike the magic-link flow, this
+    // navigates the whole page away to Google immediately, so there's
+    // nothing to render locally while it's pending. onAuthStateChange
+    // above picks up 'signed-in' once Google redirects back with a
+    // session, same as the magic-link fragment handoff.
+    return true
+  }, [])
+
   const signOut = useCallback(async () => {
     await supabase.auth.signOut()
   }, [])
 
-  return { session, status, error, sendMagicLink, signOut }
+  return { session, status, error, sendMagicLink, signInWithGoogle, signOut }
 }

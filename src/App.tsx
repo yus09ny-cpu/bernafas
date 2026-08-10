@@ -1,5 +1,6 @@
 import { useState, type ReactElement } from 'react'
 import BottomNav, { type Tab } from '@/components/nav/BottomNav'
+import AccountMenu from '@/components/nav/AccountMenu'
 import SessionScreen from '@/screens/SessionScreen'
 import ReviewScreen from '@/screens/ReviewScreen'
 import JournalScreen from '@/screens/JournalScreen'
@@ -16,7 +17,10 @@ const SCREENS: Record<Tab, () => ReactElement> = {
   nafascloud: NafasCloudScreen,
 }
 
-// App shell — five-tab bottom nav plus whichever screen is active.
+// App shell — five-tab bottom nav plus whichever screen is active, plus a
+// fixed top-right AccountMenu (sign-out) rendered here rather than inside
+// any one screen, so it's reachable from every tab instead of buried in
+// one of them.
 // SessionScreen (and the BLE/HRV session inside it) unmounts when the user
 // switches away from the Sesi tab; nothing here persists it across tabs,
 // same as ConnectScreen's device connection was never persisted across a
@@ -41,6 +45,7 @@ export default function App() {
       <main className="h-full w-full overflow-hidden">
         <ActiveScreen />
       </main>
+      <AccountMenu />
       <BottomNav active={tab} onChange={setTab} />
     </div>
   )
