@@ -17,10 +17,11 @@ export function ChartCard({ title, children }: { title: string; children: ReactN
   )
 }
 
-export function ChartEmptyState() {
-  return (
-    <div className="flex h-24 items-center justify-center text-xs text-[var(--color-text-muted)]">
-      Sambungkan peranti HRV untuk lihat carta ini
-    </div>
-  )
+// message defaults to the original device-focused copy (Skrin 4's own
+// three charts, which are always empty for the same one reason — no HRV
+// device this session); Progress's trend charts pass their own wording
+// since "connect a device" would be wrong there — the real cause is too
+// few *sessions* recorded yet, not this session lacking a device.
+export function ChartEmptyState({ message = 'Sambungkan peranti HRV untuk lihat carta ini' }: { message?: string }) {
+  return <div className="flex h-24 items-center justify-center px-4 text-center text-xs text-[var(--color-text-muted)]">{message}</div>
 }

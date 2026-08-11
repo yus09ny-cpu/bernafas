@@ -1,14 +1,13 @@
 import { useState } from 'react'
-import { HistoryTabIcon } from '@/screens/review/icons'
+import { HistoryTabIcon, ProgressTabIcon } from '@/screens/review/icons'
 import HistoryTab from '@/screens/review/HistoryTab'
+import ProgressTab from '@/screens/review/ProgressTab'
 
-type ReviewSubTab = 'history'
+type ReviewSubTab = 'history' | 'progress'
 
-// Only one sub-tab exists today — kept as a one-entry array + real state
-// (not a hardcoded screen) so a future sub-tab (e.g. Trends) is a data
-// change here, not a layout rewrite.
 const SUB_TABS: Array<{ id: ReviewSubTab; label: string; Icon: typeof HistoryTabIcon }> = [
   { id: 'history', label: 'Sejarah', Icon: HistoryTabIcon },
+  { id: 'progress', label: 'Progres', Icon: ProgressTabIcon },
 ]
 
 // Semakan (Review) — icon-based sub-tab strip at the top, its own
@@ -51,6 +50,7 @@ export default function ReviewScreen() {
       </div>
 
       {subTab === 'history' && <HistoryTab />}
+      {subTab === 'progress' && <ProgressTab />}
     </div>
   )
 }

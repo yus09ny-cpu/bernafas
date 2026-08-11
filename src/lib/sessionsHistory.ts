@@ -82,3 +82,56 @@ export async function fetchSessionDetail(id: string): Promise<{ data: SessionDet
     error: null,
   }
 }
+
+export interface SessionTrendPoint {
+  id: string
+  startedAt: string
+  durationSec: number | null
+  coherenceAvg: number | null
+  achievementPct: number | null
+  avgBpm: number | null
+  mediumPct: number | null
+  highPct: number | null
+}
+
+// Review's Progress tab — same "no `history`" reasoning as
+// fetchSessionsList (four aggregate columns per session is all four trend
+// charts need), but ascending this time: Progress's shared x-axis reads
+// oldest-to-newest left-to-right, the opposite of History's list.
+export async function fetchSessionsTrend(): Promise<{ data: SessionTrendPoint[]; error: string | null }> {
+  const { data, error } = await supabase
+    .from('sessions')
+    .select('id, started_at, duration_sec, coherence_avg, achievement_pct, avg_bpm, medium_pct, high_pct')
+    .order('started_at', { ascending: true })
+
+  if (error) {
+    console.error('[fetchSessionsTrend] select failed:', error.message)
+    return { data: [], error: error.message }
+  }
+
+  return {
+    data: (data ?? []).map(row => ({
+      id: row.id as string,
+      startedAt: row.started_at as string,
+      durationSec: row.duration_sec as number | null,
+      coherenceAvg: row.coherence_avg as number | null,
+      achievementPct: row.achievement_pct as number | null,
+      avgBpm: row.avg_bpm as number | null,
+      mediumPct: row.medium_pct as number | null,
+      highPct: row.high_pct as number | null,
+    })),
+    error: null,
+  }
+}
+
+// Minutes spent in medium+high coherence for one session — derived from
+// two already-stored columns (duration_sec × the medium/high zone
+// percentages saveSession() computed at session end), not a new stored
+// field. Null if the session has no zone data at all (e.g. no device was
+// connected), same "missing, not zero" distinction sessionStats.ts's own
+// null-handling uses elsewhere.
+export function minutesInCoherence(point: SessionTrendPoint): number | null {
+  if (point.durationSec === null || (point.mediumPct === null && point.highPct === null)) return null
+  const pct = (point.mediumPct ?? 0) + (point.highPct ?? 0)
+  return (point.durationSec * pct) / 100 / 60
+}

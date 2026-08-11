@@ -28,3 +28,21 @@ export function HistoryTabIcon({ active, size = 18 }: SubTabIconProps) {
     </svg>
   )
 }
+
+// Progress — an ascending trend line, distinct from both HistoryTabIcon's
+// clock and the main-nav ReviewIcon's static bars.
+export function ProgressTabIcon({ active, size = 18 }: SubTabIconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <path
+        d="M4 16l5-5.5 4 3.5 7-8.5"
+        stroke="currentColor"
+        strokeWidth={STROKE_WIDTH}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        opacity={active ? 1 : 0.85}
+      />
+      <path d="M15 5.5h5v5" stroke="currentColor" strokeWidth={STROKE_WIDTH} strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
