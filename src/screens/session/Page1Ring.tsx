@@ -53,30 +53,63 @@ export default function Page1Ring({ data }: { data: LiveSessionData }) {
         paddingBottom: 'calc(var(--nav-height) + 4rem + var(--safe-bottom))',
       }}
     >
-      <div className="flex w-full flex-col items-end gap-1">
-        <div className="flex items-center gap-2">
-          <DeviceConnect device={data.device} />
-          <SmoothnessSetting value={smoothness} onChange={setSmoothness} />
-        </div>
-        <span className="pr-1 text-[10px] uppercase tracking-widest text-[var(--color-text-muted)]">
+      {/* Single row, not a 2-line stack (label used to sit on its own line
+          below the buttons) — reclaims that line's height + gap for Skrin
+          1's short-viewport headroom (see HrvGraph.tsx's min-h-[64px]
+          comment for why this page specifically needed it). Button sizes
+          themselves are untouched — this only removes the wasted line, not
+          any tap target. */}
+      <div className="flex w-full items-center justify-end gap-2">
+        <span className="text-[10px] uppercase tracking-widest text-[var(--color-text-muted)]">
           {data.simulated ? 'Tanpa peranti' : 'Data langsung'}
         </span>
+        <DeviceConnect device={data.device} />
+        <SmoothnessSetting value={smoothness} onChange={setSmoothness} />
       </div>
 
       <HrvGraph beats={data.beats} />
 
-      <section className="flex flex-1 flex-col items-center justify-center gap-8">
-        <SegmentedRing zones={zones}>
-          <PulsingSphere
-            phase={data.phase}
-            phaseDurationMs={data.phaseDurationMs}
-            bpm={data.bpm ?? 0}
-            smoothness={smoothness}
-            color={zone ? ZONE_COLOR[zone] : undefined}
-          />
-        </SegmentedRing>
+      {/* min-h-[227px], not min-h-0 (tried first) — plain min-h-0 let the
+          outer flex algorithm shrink section below what its own children
+          need, and since section itself has no overflow-hidden, that
+          shortfall doesn't clip: the label block silently overflowed
+          section's box and visually collided with the "Nafas ke-N" sibling
+          right after it. This is that true combined floor (ring wrapper's
+          110px + gap-4's 16px + the label block's natural 101px = 227px),
+          made explicit — keep it in sync with the ring wrapper's min-h and
+          this section's own gap below if any of the three change.
+          gap-8→gap-4 here too: the first version of this fix (196px ring
+          floor, gap-8, nav-only clearance check) still left the RMSSD line
+          and "Nafas ke-N" rendering behind the floating page-dot
+          indicator's own semi-transparent pill — a stricter, correct
+          clearance check is against the dot pill's actual rect, not just
+          the bottom nav bar (the dot pill sits well above the nav). */}
+      <section className="flex min-h-[227px] flex-1 flex-col items-center justify-center gap-4">
+        {/* Capped + genuinely shrinkable, unlike `section` used to be:
+            `overflow-hidden` + `min-h-[110px]` makes only THIS wrapper (not
+            the label block below, which must stay fully readable) the
+            thing that yields: max-h-80 (320px) matches SegmentedRing's own
+            default `size` pixel-for-pixel so nothing changes when there's
+            room; under real pressure the ring/sphere crops down to as small
+            as 110px tall before the deficit is allowed to spill onto the
+            graph or labels again — see the Playwright sweep in the commit
+            message for the before/after per-height numbers. */}
+        <div className="flex max-h-80 min-h-[110px] w-full items-center justify-center overflow-hidden">
+          <SegmentedRing zones={zones}>
+            <PulsingSphere
+              phase={data.phase}
+              phaseDurationMs={data.phaseDurationMs}
+              bpm={data.bpm ?? 0}
+              smoothness={smoothness}
+              color={zone ? ZONE_COLOR[zone] : undefined}
+            />
+          </SegmentedRing>
+        </div>
 
-        <div className="flex flex-col items-center gap-1">
+        {/* shrink-0: this label block must never be the thing that gives up
+            space (see the ring wrapper's comment above) — it's the exact
+            content the whole point of this fix is to keep visible. */}
+        <div className="flex shrink-0 flex-col items-center gap-1">
           <BreathPhaseLabel
             phase={data.phase}
             calibrating={calibrating}

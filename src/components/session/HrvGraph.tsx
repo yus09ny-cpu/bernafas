@@ -76,7 +76,16 @@ export function HrvGraph({ beats, color }: { beats: Beat[]; color?: string }) {
   const labelStyle = customColor ? { textShadow: '0 1px 4px rgba(0,0,0,0.4)' } : undefined
 
   return (
-    <div className="relative h-28 w-full overflow-hidden">
+    // min-h-[64px] alongside h-28: `overflow-hidden` on a flex item
+    // otherwise overrides its automatic min-size to 0 (CSS flexbox spec),
+    // making this the item a too-short mobile viewport squeezes first — all
+    // the way to a fully collapsed 0px on Page1Ring specifically (its extra
+    // header row above this graph tips it over the edge before Skrin 2/3).
+    // An explicit min-height isn't subject to that auto-min-size override,
+    // so it puts a floor under the shrink instead of letting it hit zero —
+    // see the Playwright viewport-height sweep in the commit message for
+    // the before/after numbers.
+    <div className="relative h-28 min-h-[64px] w-full overflow-hidden">
       <svg
         viewBox={`0 0 ${VB_W} ${VB_H}`}
         preserveAspectRatio="none"
