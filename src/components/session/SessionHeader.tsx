@@ -47,9 +47,10 @@ export default function SessionHeader({ bpm, isDeviceConnected, contactLost, ses
       <button
         onClick={onEnd}
         aria-label={sessionActive ? 'Tamatkan sesi' : 'Sesi baharu'}
-        className="pointer-events-auto flex h-9 w-9 items-center justify-center rounded-full bg-black/30 text-white backdrop-blur-sm transition-transform active:scale-90"
+        className="pointer-events-auto flex items-center gap-1.5 rounded-full bg-black/30 px-3 py-1.5 text-xs font-medium text-white backdrop-blur-sm transition-transform active:scale-90"
       >
-        {sessionActive ? <X size={18} /> : <RotateCcw size={16} />}
+        {sessionActive ? <X size={16} /> : <RotateCcw size={14} />}
+        {sessionActive ? 'Tamat Sesi' : 'Sesi Baharu'}
       </button>
     </div>
   )

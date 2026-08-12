@@ -9,6 +9,23 @@ export interface SessionListItem {
   achievementPct: number | null
 }
 
+// History detail's delete action. RLS ("sessions: delete own", user_id =
+// auth.uid() — confirmed present against the live production policy, not
+// just the migration file) is what actually stops a user deleting another
+// user's row; `.eq('id', id)` alone just targets which row this user's own
+// request means. A mismatched/foreign id simply deletes zero rows rather
+// than erroring, same "no row" shape RLS gives fetchSessionDetail on a
+// guessed id.
+export async function deleteSession(id: string): Promise<{ error: string | null }> {
+  const { error } = await supabase.from('sessions').delete().eq('id', id)
+
+  if (error) {
+    console.error('[deleteSession] delete failed:', error.message)
+    return { error: error.message }
+  }
+  return { error: null }
+}
+
 export interface SessionDetail extends SessionListItem {
   avgBpm: number | null
   lowPct: number | null
