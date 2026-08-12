@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
-import { ChevronLeft, Loader2 } from 'lucide-react'
-import { fetchSessionDetail, type SessionDetail } from '@/lib/sessionsHistory'
+import { ChevronLeft, Loader2, Trash2 } from 'lucide-react'
+import { deleteSession, fetchSessionDetail, type SessionDetail } from '@/lib/sessionsHistory'
 import { formatDuration, formatSessionDate } from '@/lib/utils'
 import StatTile from '@/components/session/StatTile'
 import ZoneStatRow from '@/components/session/ZoneStatRow'
 import CoherenceBandChart from '@/components/session/CoherenceBandChart'
 import HrvLineChart from '@/components/session/HrvLineChart'
+import ConfirmDialog from '@/components/ui/ConfirmDialog'
 
 // History's detail view — a single session's report. Every stat below is
 // either a stored column (low_pct/medium_pct/high_pct, avg_bpm,
@@ -15,9 +16,20 @@ import HrvLineChart from '@/components/session/HrvLineChart'
 // fed this session's own stored `history` instead of a live stream.
 // Nothing here is recomputed from `history` — using the same numbers the
 // user actually saw live, not a second independently-derived copy.
+//
+// Delete lives here rather than as a per-row icon in HistoryList's table —
+// that list is already a tight 4-column grid on a narrow viewport (see
+// HistoryList.tsx's grid-cols comment), and each row is itself a `<button>`
+// (opens this detail view), so a second tap target per row would mean
+// either a nested button (invalid HTML) or restructuring every row. This
+// screen is already "one session, opened" — a single header action reads
+// clearer than a trash icon competing for space in every list row.
 export default function HistoryDetail({ sessionId, onBack }: { sessionId: string; onBack: () => void }) {
   const [session, setSession] = useState<SessionDetail | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -33,15 +45,61 @@ export default function HistoryDetail({ sessionId, onBack }: { sessionId: string
     }
   }, [sessionId])
 
+  const handleDelete = async () => {
+    setDeleting(true)
+    setDeleteError(null)
+    const { error } = await deleteSession(sessionId)
+    setDeleting(false)
+    if (error) {
+      setDeleteError(error)
+      return
+    }
+    setConfirmOpen(false)
+    // Back to HistoryList, which HistoryTab.tsx mounts fresh (it's the
+    // list/detail toggle's other branch, not a shared instance) — its own
+    // useEffect re-fetches on mount, so the deleted row is gone from the
+    // list without any manual cache-busting here.
+    onBack()
+  }
+
   return (
     <div className="flex w-full flex-col gap-4">
-      <button
-        type="button"
-        onClick={onBack}
-        className="flex items-center gap-1 self-start text-sm font-medium text-[var(--color-primary-dark)]"
-      >
-        <ChevronLeft size={18} /> Kembali
-      </button>
+      <div className="flex w-full items-center justify-between">
+        <button
+          type="button"
+          onClick={onBack}
+          className="flex items-center gap-1 text-sm font-medium text-[var(--color-primary-dark)]"
+        >
+          <ChevronLeft size={18} /> Kembali
+        </button>
+        {session && (
+          <button
+            type="button"
+            onClick={() => setConfirmOpen(true)}
+            aria-label="Padam sesi ini"
+            className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium text-[var(--color-destructive)] transition-colors hover:bg-[var(--color-destructive)]/10"
+          >
+            <Trash2 size={14} /> Padam
+          </button>
+        )}
+      </div>
+
+      <ConfirmDialog
+        open={confirmOpen}
+        title="Padam sesi ini?"
+        description="Rekod sesi ini akan dipadam selama-lamanya dan tidak boleh dipulihkan."
+        confirmLabel="Padam"
+        cancelLabel="Batal"
+        destructive
+        busy={deleting}
+        error={deleteError}
+        onConfirm={handleDelete}
+        onCancel={() => {
+          if (deleting) return
+          setConfirmOpen(false)
+          setDeleteError(null)
+        }}
+      />
 
       {!session && !error && (
         <div className="flex w-full flex-col items-center gap-2 py-10">

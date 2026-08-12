@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { fetchSessionsList, type SessionListItem } from '@/lib/sessionsHistory'
-import { formatDuration, formatSessionDate } from '@/lib/utils'
+import { formatDuration, formatSessionDate, formatSessionTime } from '@/lib/utils'
 
 // History's list view — the signed-in user's past sessions, most recent
 // first (fetchSessionsList already orders started_at desc). `sessions ===
@@ -55,7 +55,7 @@ export default function HistoryList({ onSelect }: { onSelect: (id: string) => vo
   return (
     <div className="flex w-full flex-col gap-3">
       <div className="flex w-full flex-col overflow-hidden rounded-2xl border border-[var(--color-card-border)] bg-white/70 shadow-[var(--shadow-soft)]">
-        <div className="grid grid-cols-4 gap-2 border-b border-[var(--color-card-border)]/50 px-4 py-2 text-[10px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">
+        <div className="grid grid-cols-[1.3fr_0.8fr_0.8fr_0.9fr] gap-2 border-b border-[var(--color-card-border)]/50 px-4 py-2 text-[10px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">
           <span>Tarikh</span>
           <span>Tempoh</span>
           <span>Koheren</span>
@@ -66,9 +66,12 @@ export default function HistoryList({ onSelect }: { onSelect: (id: string) => vo
             key={s.id}
             type="button"
             onClick={() => onSelect(s.id)}
-            className="grid grid-cols-4 gap-2 border-b border-[var(--color-card-border)]/20 px-4 py-3 text-left text-sm text-[var(--color-text)] transition-colors last:border-b-0 hover:bg-[var(--color-primary)]/5 active:bg-[var(--color-primary)]/10"
+            className="grid grid-cols-[1.3fr_0.8fr_0.8fr_0.9fr] gap-2 border-b border-[var(--color-card-border)]/20 px-4 py-3 text-left text-sm text-[var(--color-text)] transition-colors last:border-b-0 hover:bg-[var(--color-primary)]/5 active:bg-[var(--color-primary)]/10"
           >
-            <span className="tabular-nums">{formatSessionDate(s.startedAt)}</span>
+            <span className="flex flex-col tabular-nums">
+              <span>{formatSessionDate(s.startedAt)}</span>
+              <span className="text-[10px] text-[var(--color-text-muted)]">{formatSessionTime(s.startedAt)}</span>
+            </span>
             <span className="tabular-nums">{s.durationSec !== null ? formatDuration(s.durationSec) : '—'}</span>
             <span className="tabular-nums">{s.coherenceAvg !== null ? Math.round(s.coherenceAvg * 100) : '—'}</span>
             <span className="text-right tabular-nums">{s.achievementPct !== null ? `${s.achievementPct}%` : '—'}</span>
