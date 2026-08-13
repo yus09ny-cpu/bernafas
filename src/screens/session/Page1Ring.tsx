@@ -47,7 +47,15 @@ export default function Page1Ring({ data }: { data: LiveSessionData }) {
 
   return (
     <div
-      className="flex h-full w-full flex-col items-center justify-between px-6"
+      // gap-2.5 (10px): `justify-between` alone only distributes space when
+      // the column has slack — under a short-viewport squeeze it collapses
+      // to 0, which is exactly how the graph and the ring ended up touching
+      // edge-to-edge with no breathing room (confirmed via Playwright
+      // getBoundingClientRect() sweep, 400-900px). `gap` guarantees this
+      // floor regardless of squeeze, while still letting justify-between add
+      // more on top of it once there's real slack — see the sweep numbers
+      // in the commit message.
+      className="flex h-full w-full flex-col items-center justify-between gap-2.5 px-6"
       style={{
         paddingTop: 'calc(4.5rem + var(--safe-top))',
         paddingBottom: 'calc(var(--nav-height) + 4rem + var(--safe-bottom))',
