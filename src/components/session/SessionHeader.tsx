@@ -1,15 +1,18 @@
 import { Hand, RotateCcw, X } from 'lucide-react'
-import { DeviceConnect } from '@/components/session/DeviceConnect'
-import { SmoothnessSetting } from '@/components/session/SmoothnessSetting'
+import { DeviceSettingsPopover } from '@/components/session/DeviceSettingsPopover'
 import type { HeartRateDevice } from '@/hooks/useHeartRateDevice'
 
-// Skrin-1-only extras — device-connect pill + smoothness setting, folded
-// into this shared floating header instead of Page1Ring rendering a second
-// row of its own for them. Omitted on Skrin 2-4 (undefined `page1` prop),
-// which keep the header's original two-end layout untouched below.
+// Skrin-1-only extras — device connection + smoothness setting, folded into
+// this shared floating header instead of Page1Ring rendering a second row
+// of its own for them. Both live behind ONE popover trigger (see
+// DeviceSettingsPopover.tsx) rather than an inline pill + icon, specifically
+// so the header row's width never depends on the connected device's
+// advertised name length — a long real BLE name has no length ceiling, so
+// inlining it was never actually overflow-safe, just overflow-safe for the
+// short test names tried so far. Omitted on Skrin 2-4 (undefined `page1`
+// prop), which keep the header's original two-end layout untouched below.
 interface Page1HeaderExtras {
   device: HeartRateDevice
-  simulated: boolean
   smoothness: number
   onSmoothnessChange: (value: number) => void
 }
@@ -59,18 +62,16 @@ export default function SessionHeader({ bpm, isDeviceConnected, contactLost, ses
   )
 
   if (page1) {
-    // Consolidated single row: [end icon + bpm] grouped on the left,
-    // [device-connect pill + smoothness icon] grouped on the right —
-    // replaces what used to be this floating row PLUS a second, separate
-    // row Page1Ring rendered below it. "Tamat Sesi"'s text label is dropped
-    // (icon-only, aria-label carries it) to make room for the end icon to
-    // sit compactly next to bpm rather than pinned to the far edge; "Data
-    // langsung" is dropped entirely when a device IS actually connected
-    // (redundant with the bpm badge already proving live data) and kept
-    // only for "Tanpa peranti" (no device), where it's the one state that's
-    // actually informative. Reclaimed height verified via the same
-    // Playwright sweep as the graph/ring gap fix — see Page1Ring.tsx's
-    // paddingTop comment.
+    // Consolidated single row: [end icon + bpm] grouped on the left, one
+    // fixed-size device/settings icon on the right — replaces what used to
+    // be this floating row PLUS a second, separate row Page1Ring rendered
+    // below it (an inline device-connect pill + smoothness icon, before
+    // that). "Tamat Sesi"'s text label is dropped (icon-only, aria-label
+    // carries it) so the end icon can sit compactly next to bpm rather than
+    // pinned to the far edge. Device name, disconnect, and the smoothness
+    // slider all live inside DeviceSettingsPopover's popup now — see that
+    // file for why. Reclaimed height verified via the same Playwright sweep
+    // as the graph/ring gap fix — see Page1Ring.tsx's paddingTop comment.
     return (
       <div
         className="pointer-events-none absolute inset-x-0 top-0 z-30 flex items-center justify-between gap-2 pr-5"
@@ -87,12 +88,8 @@ export default function SessionHeader({ bpm, isDeviceConnected, contactLost, ses
           </button>
           {bpmBadge}
         </div>
-        <div className="pointer-events-auto flex items-center gap-2">
-          {page1.simulated && (
-            <span className="text-[10px] uppercase tracking-widest text-[var(--color-text-muted)]">Tanpa peranti</span>
-          )}
-          <DeviceConnect device={page1.device} />
-          <SmoothnessSetting value={page1.smoothness} onChange={page1.onSmoothnessChange} />
+        <div className="pointer-events-auto">
+          <DeviceSettingsPopover device={page1.device} smoothness={page1.smoothness} onSmoothnessChange={page1.onSmoothnessChange} />
         </div>
       </div>
     )

@@ -70,11 +70,7 @@ export default function SessionCarousel({ data, onEndSession }: SessionCarouselP
         contactLost={data.contactLost}
         sessionActive={data.sessionActive}
         onEnd={onEndSession}
-        page1={
-          activeIndex === 0
-            ? { device: data.device, simulated: data.simulated, smoothness, onSmoothnessChange: setSmoothness }
-            : undefined
-        }
+        page1={activeIndex === 0 ? { device: data.device, smoothness, onSmoothnessChange: setSmoothness } : undefined}
       />
 
       <div
