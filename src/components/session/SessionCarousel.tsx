@@ -25,6 +25,11 @@ const PAGE_COUNT = 4
 export default function SessionCarousel({ data, onEndSession }: SessionCarouselProps) {
   const trackRef = useRef<HTMLDivElement>(null)
   const [activeIndex, setActiveIndex] = useState(0)
+  // Lifted from Page1Ring: SessionHeader now renders the smoothness control
+  // (folded into Skrin 1's consolidated single row — see SessionHeader.tsx),
+  // so the state has to live somewhere both it and Page1Ring (which still
+  // consumes the value for PulsingSphere) can reach.
+  const [smoothness, setSmoothness] = useState(1)
 
   const handleScroll = () => {
     const el = trackRef.current
@@ -46,7 +51,7 @@ export default function SessionCarousel({ data, onEndSession }: SessionCarouselP
         className="no-scrollbar flex h-full w-full snap-x snap-mandatory overflow-x-auto overflow-y-hidden"
       >
         <div className="h-full w-full shrink-0 snap-start snap-always">
-          <Page1Ring data={data} />
+          <Page1Ring data={data} smoothness={smoothness} />
         </div>
         <div className="h-full w-full shrink-0 snap-start snap-always">
           <Page2Mandala data={data} />
@@ -65,6 +70,11 @@ export default function SessionCarousel({ data, onEndSession }: SessionCarouselP
         contactLost={data.contactLost}
         sessionActive={data.sessionActive}
         onEnd={onEndSession}
+        page1={
+          activeIndex === 0
+            ? { device: data.device, simulated: data.simulated, smoothness, onSmoothnessChange: setSmoothness }
+            : undefined
+        }
       />
 
       <div

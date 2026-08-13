@@ -1,26 +1,27 @@
-import { useState } from 'react'
 import { HrvGraph } from '@/components/session/HrvGraph'
 import { SegmentedRing } from '@/components/session/SegmentedRing'
 import { PulsingSphere } from '@/components/session/PulsingSphere'
-import { SmoothnessSetting } from '@/components/session/SmoothnessSetting'
-import { DeviceConnect } from '@/components/session/DeviceConnect'
 import BreathPhaseLabel from '@/components/session/BreathPhaseLabel'
 import { getCoherenceZone, ZONE_COLOR } from '@/lib/coherenceZones'
 import type { LiveSessionData } from './types'
 
 // Skrin 1 — ported wholesale from calm-breath-pulse's session screen
 // (SegmentedRing + PulsingSphere + HrvGraph + SmoothnessSetting +
-// DeviceConnect, all copied as-is). Two adaptations from a literal port:
+// DeviceConnect, all copied as-is). Adaptations from a literal port:
 //  1. This stays a props-driven component (`data: LiveSessionData`) instead
 //     of calling useHrvSession()/useBreathingPacer() itself — Bernafas calls
 //     those hooks exactly once, in SessionScreen.tsx, so all four carousel
 //     pages share one live BLE connection instead of each opening their own.
-//  2. The bpm badge and the X/end-session button aren't repeated here — the
-//     floating SessionHeader (shared by all 4 pages) already renders both;
-//     duplicating them would just stack two of the same control.
-// Everything else — the ring/sphere visuals, the WAAPI animations, the
-// smoothness setting, the device-connect affordance — is unedited.
-export default function Page1Ring({ data }: { data: LiveSessionData }) {
+//  2. The bpm badge, X/end-session button, DeviceConnect pill, and
+//     SmoothnessSetting icon aren't rendered here — the floating
+//     SessionHeader (shared by all 4 pages) renders all four in one row
+//     when `page1` extras are passed to it (SessionCarousel.tsx), which is
+//     why `smoothness` arrives as a prop instead of this component owning
+//     that state itself. This used to be a second header row Page1Ring drew
+//     on its own below SessionHeader — folded into SessionHeader's single
+//     row instead, reclaiming that whole row's height (verified via the
+//     same Playwright sweep as the graph/ring gap fix, see paddingTop below).
+export default function Page1Ring({ data, smoothness }: { data: LiveSessionData; smoothness: number }) {
   // `data.zones` is the single shared zone-dominance tally — computed once
   // in SessionScreen.tsx (useZoneDominance off coherenceLiveAlt) and handed
   // to both this page and Page2Mandala, so their rings can never drift
@@ -33,7 +34,6 @@ export default function Page1Ring({ data }: { data: LiveSessionData }) {
   // it returns anything but 0, so the ring/sphere will show red/idle for
   // the first half-minute of every session — expected, not a bug.
   const { zones } = data
-  const [smoothness, setSmoothness] = useState(1)
   // Zone-colors the sphere (see PulsingSphere's `color` prop) — same
   // getCoherenceZone/ZONE_COLOR pipeline as the ring segments and as
   // Bernafas's own PulseDot on Skrin 2, so all three agree on what "red"
@@ -57,24 +57,19 @@ export default function Page1Ring({ data }: { data: LiveSessionData }) {
       // in the commit message.
       className="flex h-full w-full flex-col items-center justify-between gap-2.5 px-6"
       style={{
-        paddingTop: 'calc(4.5rem + var(--safe-top))',
+        // Was calc(4.5rem + safe-top) — sized to clear SessionHeader's row
+        // PLUS this page's own second row (now removed, folded into
+        // SessionHeader — see the comment above) plus the gap between them.
+        // Now only needs to clear SessionHeader's single row, same as
+        // Skrin 2-4 already do at their own calc(4.5rem + ...) — but
+        // Skrin 1's row is now visually taller than theirs (device pill +
+        // smoothness icon share the row), so this stays its own value
+        // rather than just copying theirs; re-verified via the same
+        // Playwright sweep as the graph/ring gap fix.
+        paddingTop: 'calc(4.25rem + var(--safe-top))',
         paddingBottom: 'calc(var(--nav-height) + 4rem + var(--safe-bottom))',
       }}
     >
-      {/* Single row, not a 2-line stack (label used to sit on its own line
-          below the buttons) — reclaims that line's height + gap for Skrin
-          1's short-viewport headroom (see HrvGraph.tsx's min-h-[64px]
-          comment for why this page specifically needed it). Button sizes
-          themselves are untouched — this only removes the wasted line, not
-          any tap target. */}
-      <div className="flex w-full items-center justify-end gap-2">
-        <span className="text-[10px] uppercase tracking-widest text-[var(--color-text-muted)]">
-          {data.simulated ? 'Tanpa peranti' : 'Data langsung'}
-        </span>
-        <DeviceConnect device={data.device} />
-        <SmoothnessSetting value={smoothness} onChange={setSmoothness} />
-      </div>
-
       <HrvGraph beats={data.beats} />
 
       {/* min-h-[227px], not min-h-0 (tried first) — plain min-h-0 let the
