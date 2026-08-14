@@ -1,45 +1,28 @@
-// TEMP DEBUG — investigating why the segmented ring stays mostly gray on
-// real hardware: `beats rejected` telemetry showed IbiArtifactFilter
-// rejecting the vast majority of real beats (110+ rejections against
-// history.length in the single digits/dozens over a multi-minute session),
-// starving `history` of samples. This surfaces the *actual* rejected-vs-
-// accepted IBI pair for every rejection, so it's possible to tell whether
-// real fingertip sensor noise is genuinely that erratic or the current 20%
-// threshold (DEFAULT_IBI_ARTIFACT_THRESHOLD_PCT in ibiArtifactFilter.ts) is
-// simply too strict for real-world signal — without changing that threshold
-// yet. Every rejection logs to console (full trail, e.g. via chrome://inspect
-// remote debugging); getLatestRejection/subscribeRejectedBeats expose the
-// same data for an on-screen readout if one gets wired up again later —
-// unconsumed for now (the debug overlay that used them was removed once the
-// PulseDot investigation closed), left in place since this investigation
-// is still open. Still TEMP — remove once the threshold question is settled.
-export interface RejectedBeat {
-  ibiMs: number
-  lastAccepted: number
-  pctChange: number // 0-1
-}
-
-let latest: RejectedBeat | null = null
+// TEMP DEBUG — real-session telemetry for IbiArtifactFilter's reject path.
+// Originally added to investigate the segmented ring staying gray (110+
+// rejections against dozens of accepted samples), later used to catch the
+// single-last-accepted baseline's poisoning failure mode directly in a real
+// session log (see ibiArtifactFilter.ts's header comment) — the evidence
+// that motivated the rolling-median-baseline fix. Kept in place post-fix so
+// a real session's before/after rejection numbers can still be pulled
+// straight from the console rather than re-added later. `baseline` (renamed
+// from `lastAccepted`) is now the rolling median the rejected IBI was
+// compared against, not a single prior sample.
+//
+// getLatestRejection/subscribeRejectedBeats and RejectedBeat's `t` timestamp
+// used to exist for a phase-correlation cross-reference in SessionScreen.tsx
+// (testing whether rejections cluster around breath-phase transitions —
+// that test came back negative, see ibiArtifactFilter.ts). Removed once
+// that investigation closed; reportRejectedBeat's console.log is the only
+// consumer left.
 let totalCount = 0
-const listeners = new Set<() => void>()
 
-export function reportRejectedBeat(ibiMs: number, lastAccepted: number, pctChange: number): void {
-  latest = { ibiMs: Math.round(ibiMs), lastAccepted: Math.round(lastAccepted), pctChange }
+export function reportRejectedBeat(ibiMs: number, baseline: number, pctChange: number): void {
   totalCount++
   console.log('[IbiArtifactFilter] TEMP DEBUG rejected beat', {
-    ibiMs: latest.ibiMs,
-    lastAccepted: latest.lastAccepted,
+    ibiMs: Math.round(ibiMs),
+    baseline: Math.round(baseline),
     pctChange: `${(pctChange * 100).toFixed(1)}%`,
     totalRejectedThisPage: totalCount,
   })
-  listeners.forEach(l => l())
-}
-
-export function getLatestRejection(): RejectedBeat | null {
-  return latest
-}
-
-export function subscribeRejectedBeats(listener: () => void): () => void {
-  listeners.add(listener)
-  return () => listeners.delete(listener)
 }

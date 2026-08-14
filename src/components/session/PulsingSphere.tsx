@@ -18,12 +18,22 @@ export function PulsingSphere({
   bpm,
   smoothness = 1,
   color,
+  size = 144,
 }: {
   phase: BreathPhase
   phaseDurationMs: number
   bpm: number
   /** 0 = linear/sharp turnaround, 1 = sine, >1 = long eased pauses at the ends. */
   smoothness?: number
+  /**
+   * Sphere diameter in px — NOT part of the original calm-breath-pulse
+   * component (fixed at 144px/size-36 there). Added so the sphere scales
+   * together with SegmentedRing's own `size` prop under Skrin 1's
+   * ring-size setting (see useRingSize.ts) instead of staying a constant
+   * size while the ring around it grows/shrinks. Defaults to the original
+   * 144px so every other caller is pixel-identical to before.
+   */
+  size?: number
   /**
    * NOT part of the original calm-breath-pulse component — its own
    * `--gradient-sphere`/`--gradient-sheen` tokens are a fixed teal-blue
@@ -131,8 +141,10 @@ export function PulsingSphere({
     <div ref={breathRef} className="will-change-transform">
       <div ref={beatRef} className="will-change-transform">
         <div
-          className="size-36 rounded-full shadow-[var(--shadow-glow)]"
+          className="rounded-full shadow-[var(--shadow-glow)]"
           style={{
+            width: size,
+            height: size,
             // Same 3-stop recipe/highlight position as the source repo's
             // --gradient-sphere, just recolored per zone instead of fixed —
             // same white->color->color shape PulseDot.tsx already uses

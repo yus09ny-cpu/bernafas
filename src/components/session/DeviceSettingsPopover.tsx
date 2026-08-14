@@ -14,16 +14,37 @@ import { Bluetooth, BluetoothConnected, Loader2 } from 'lucide-react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Slider } from '@/components/ui/slider'
 import { smoothnessLabel } from '@/components/session/SmoothnessSetting'
+import { RING_SIZE_MIN, RING_SIZE_MAX, RING_SIZE_DEFAULT } from '@/hooks/useRingSize'
 import type { HeartRateDevice } from '@/hooks/useHeartRateDevice'
+
+// Thresholds centered on RING_SIZE_DEFAULT, not an even three-way split of
+// [MIN, MAX] — the default (320) sits closer to MAX (360) than to MIN (200)
+// since it was chosen to match the ring's original hardcoded size, not the
+// midpoint of the new adjustable range. An even split would label the
+// untouched default "Besar", which misreads as "already maxed out" the
+// moment someone opens this popup for the first time.
+const RING_SIZE_PRESETS = [
+  { max: (RING_SIZE_MIN + RING_SIZE_DEFAULT) / 2, label: 'Kecil' },
+  { max: (RING_SIZE_DEFAULT + RING_SIZE_MAX) / 2, label: 'Sederhana' },
+  { max: RING_SIZE_MAX, label: 'Besar' },
+] as const
+
+function ringSizeLabel(value: number) {
+  return RING_SIZE_PRESETS.find(p => value <= p.max)?.label ?? 'Besar'
+}
 
 export function DeviceSettingsPopover({
   device,
   smoothness,
   onSmoothnessChange,
+  ringSize,
+  onRingSizeChange,
 }: {
   device: HeartRateDevice
   smoothness: number
   onSmoothnessChange: (value: number) => void
+  ringSize: number
+  onRingSizeChange: (value: number) => void
 }) {
   const { status, deviceName, error, hasRr, connect, disconnect } = device
   const connected = status === 'connected'
@@ -75,6 +96,33 @@ export function DeviceSettingsPopover({
               <span className="text-muted-foreground">Tajam</span>
               <span className="font-medium text-primary">{smoothnessLabel(smoothness)}</span>
               <span className="text-muted-foreground">Lembut</span>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <div>
+              <p className="text-sm font-medium text-foreground">Saiz bulatan & titik</p>
+              <p className="mt-1 text-xs text-muted-foreground">Melaraskan saiz keseluruhan bulatan dan titik nadi.</p>
+            </div>
+            {/* Bounded to [RING_SIZE_MIN, RING_SIZE_MAX] — both ends verified
+                via the same Playwright sweep as the graph/ring/label gap
+                fixes (400-900px height, 390px width) to still hold >=10px on
+                every gap at the max, and legible at the min. Live: onChange
+                fires on every drag tick, same as the smoothness slider above
+                — Page1Ring re-renders at the new size immediately, no
+                "apply" step. */}
+            <Slider
+              value={[ringSize]}
+              min={RING_SIZE_MIN}
+              max={RING_SIZE_MAX}
+              step={4}
+              onValueChange={([v]) => onRingSizeChange(v ?? RING_SIZE_MIN)}
+              aria-label="Saiz bulatan dan titik nadi"
+            />
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-muted-foreground">Kecil</span>
+              <span className="font-medium text-primary">{ringSizeLabel(ringSize)}</span>
+              <span className="text-muted-foreground">Besar</span>
             </div>
           </div>
         </div>

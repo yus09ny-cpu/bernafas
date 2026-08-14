@@ -3,7 +3,14 @@ import { SegmentedRing } from '@/components/session/SegmentedRing'
 import { PulsingSphere } from '@/components/session/PulsingSphere'
 import BreathPhaseLabel from '@/components/session/BreathPhaseLabel'
 import { getCoherenceZone, ZONE_COLOR } from '@/lib/coherenceZones'
+import { RING_SIZE_DEFAULT } from '@/hooks/useRingSize'
 import type { LiveSessionData } from './types'
+
+// PulsingSphere defaults to 144px (its own original fixed size) — scale it
+// proportionally with the chosen ring size so "the ring and the dot" move
+// together as one group, per the ring-size setting's own framing, instead
+// of the ring resizing around a dot that stays a constant size.
+const SPHERE_SIZE_AT_DEFAULT_RING = 144
 
 // Skrin 1 — ported wholesale from calm-breath-pulse's session screen
 // (SegmentedRing + PulsingSphere + HrvGraph + SmoothnessSetting +
@@ -21,7 +28,7 @@ import type { LiveSessionData } from './types'
 //     on its own below SessionHeader — folded into SessionHeader's single
 //     row instead, reclaiming that whole row's height (verified via the
 //     same Playwright sweep as the graph/ring gap fix, see paddingTop below).
-export default function Page1Ring({ data, smoothness }: { data: LiveSessionData; smoothness: number }) {
+export default function Page1Ring({ data, smoothness, ringSize }: { data: LiveSessionData; smoothness: number; ringSize: number }) {
   // `data.zones` is the single shared zone-dominance tally — computed once
   // in SessionScreen.tsx (useZoneDominance off coherenceLiveAlt) and handed
   // to both this page and Page2Mandala, so their rings can never drift
@@ -91,20 +98,26 @@ export default function Page1Ring({ data, smoothness }: { data: LiveSessionData;
         {/* Capped + genuinely shrinkable, unlike `section` used to be:
             `overflow-hidden` + `min-h-[110px]` makes only THIS wrapper (not
             the label block below, which must stay fully readable) the
-            thing that yields: max-h-80 (320px) matches SegmentedRing's own
-            default `size` pixel-for-pixel so nothing changes when there's
-            room; under real pressure the ring/sphere crops down to as small
-            as 110px tall before the deficit is allowed to spill onto the
-            graph or labels again — see the Playwright sweep in the commit
-            message for the before/after per-height numbers. */}
-        <div className="flex max-h-80 min-h-[110px] w-full items-center justify-center overflow-hidden">
-          <SegmentedRing zones={zones}>
+            thing that yields; under real pressure the ring/sphere crops
+            down to as small as 110px tall before the deficit is allowed to
+            spill onto the graph or labels again — see the Playwright sweep
+            in the commit message for the before/after per-height numbers.
+            maxHeight was a static max-h-80 (320px, matching SegmentedRing's
+            own default `size`) — now driven by the user's ringSize
+            preference instead (useRingSize.ts), clamped to
+            [RING_SIZE_MIN, RING_SIZE_MAX]; that clamp is what keeps a
+            larger chosen size from ever re-eating the gap floors this same
+            sweep verified, since the wrapper can never grow past
+            RING_SIZE_MAX regardless of what's requested. */}
+        <div className="flex min-h-[110px] w-full items-center justify-center overflow-hidden" style={{ maxHeight: ringSize }}>
+          <SegmentedRing zones={zones} size={ringSize}>
             <PulsingSphere
               phase={data.phase}
               phaseDurationMs={data.phaseDurationMs}
               bpm={data.bpm ?? 0}
               smoothness={smoothness}
               color={zone ? ZONE_COLOR[zone] : undefined}
+              size={(SPHERE_SIZE_AT_DEFAULT_RING * ringSize) / RING_SIZE_DEFAULT}
             />
           </SegmentedRing>
         </div>

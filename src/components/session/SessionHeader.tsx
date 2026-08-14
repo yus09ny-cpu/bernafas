@@ -15,6 +15,8 @@ interface Page1HeaderExtras {
   device: HeartRateDevice
   smoothness: number
   onSmoothnessChange: (value: number) => void
+  ringSize: number
+  onRingSizeChange: (value: number) => void
 }
 
 interface SessionHeaderProps {
@@ -89,7 +91,13 @@ export default function SessionHeader({ bpm, isDeviceConnected, contactLost, ses
           {bpmBadge}
         </div>
         <div className="pointer-events-auto">
-          <DeviceSettingsPopover device={page1.device} smoothness={page1.smoothness} onSmoothnessChange={page1.onSmoothnessChange} />
+          <DeviceSettingsPopover
+            device={page1.device}
+            smoothness={page1.smoothness}
+            onSmoothnessChange={page1.onSmoothnessChange}
+            ringSize={page1.ringSize}
+            onRingSizeChange={page1.onRingSizeChange}
+          />
         </div>
       </div>
     )

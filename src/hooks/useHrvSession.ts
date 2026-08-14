@@ -99,6 +99,16 @@ export function useHrvSession() {
   // before it ever gets the chance to.
   const acceptedCountRef = useRef(0)
   const rejectedCountRef = useRef(0)
+  // TEMP — calibration-time investigation (2026-08). Wall-clock counterpart
+  // to sessionStartRef (performance.now()-based) specifically so
+  // handleReading — a stable useCallback, would see a stale closure over
+  // sessionStartedAt state — can compute a real elapsed-seconds figure for
+  // the logging below. coherenceAltReadyReportedRef tracks the previous
+  // flip state so the one-time "just became ready" log fires exactly once
+  // per session, not every packet after readiness. Remove both alongside
+  // the console.log calls once the calibration-time question is settled.
+  const sessionStartedAtMsRef = useRef(0)
+  const coherenceAltReadyReportedRef = useRef(false)
 
   const handleReading = useCallback((reading: HeartRateReading) => {
     // Firmware now sends an immediate 2-byte packet (flags=0x04, HR=0) the
@@ -192,7 +202,23 @@ export function useHrvSession() {
         const alt = coherenceFromBeats(capped, now)
         coherenceAltRef.current = alt
         setCoherenceLiveAlt(alt)
-        setCoherenceAltReady(hasEnoughDataForCoherence(capped, now))
+        const ready = hasEnoughDataForCoherence(capped, now)
+        setCoherenceAltReady(ready)
+        // TEMP DEBUG — fires exactly once per session, the instant
+        // coherenceAltReady flips true, with the accept/reject split at
+        // that moment. See ibiArtifactFilter.ts's own TEMP DEBUG logging —
+        // same open investigation, this is the calibration-time angle of it.
+        if (import.meta.env.DEV && ready && !coherenceAltReadyReportedRef.current) {
+          coherenceAltReadyReportedRef.current = true
+          const total = acceptedCountRef.current + rejectedCountRef.current
+          console.log('[calibration-ready] coherenceAltReady flipped true', {
+            elapsedSec: +((now - sessionStartedAtMsRef.current) / 1000).toFixed(1),
+            acceptedTotal: acceptedCountRef.current,
+            rejectedTotal: rejectedCountRef.current,
+            rejectionRatePct: total > 0 ? +((rejectedCountRef.current / total) * 100).toFixed(1) : null,
+            beatsBufferLength: capped.length,
+          })
+        }
       }
       if (liveRrRef.current.length >= 3) {
         const coherence = computeCoherence(liveRrRef.current)
@@ -209,6 +235,12 @@ export function useHrvSession() {
             liveWindowRrMs: [...liveRrRef.current],
             acceptedTotal: acceptedCountRef.current,
             rejectedTotal: rejectedCountRef.current,
+            // TEMP — calibration-time investigation, see [calibration-ready]
+            // above. elapsedSec + coherenceAltReady together show the whole
+            // calibration timeline across the session, not just the moment
+            // it finally flips true (or never does).
+            elapsedSec: +((now - sessionStartedAtMsRef.current) / 1000).toFixed(1),
+            coherenceAltReady: coherenceAltReadyReportedRef.current,
           })
         }
       }
@@ -227,6 +259,8 @@ export function useHrvSession() {
     liveRrRef.current = []
     smoothedBpmRef.current = null
     sessionStartRef.current = performance.now()
+    sessionStartedAtMsRef.current = Date.now()
+    coherenceAltReadyReportedRef.current = false
     setSessionStartedAt(new Date())
     setSmoothedBpm(null)
     setCoherenceLive(null)

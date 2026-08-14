@@ -5,6 +5,7 @@ import Page1Ring from '@/screens/session/Page1Ring'
 import Page2Mandala from '@/screens/session/Page2Mandala'
 import Page3Scene from '@/screens/session/Page3Scene'
 import Page4Summary from '@/screens/session/Page4Summary'
+import { useRingSize } from '@/hooks/useRingSize'
 import type { LiveSessionData } from '@/screens/session/types'
 
 interface SessionCarouselProps {
@@ -30,6 +31,10 @@ export default function SessionCarousel({ data, onEndSession }: SessionCarouselP
   // so the state has to live somewhere both it and Page1Ring (which still
   // consumes the value for PulsingSphere) can reach.
   const [smoothness, setSmoothness] = useState(1)
+  // Same lift-to-here reasoning as smoothness above: the control lives in
+  // SessionHeader's popover, but Page1Ring (the ring/sphere itself) is what
+  // consumes the value.
+  const { ringSize, setRingSize } = useRingSize()
 
   const handleScroll = () => {
     const el = trackRef.current
@@ -51,7 +56,7 @@ export default function SessionCarousel({ data, onEndSession }: SessionCarouselP
         className="no-scrollbar flex h-full w-full snap-x snap-mandatory overflow-x-auto overflow-y-hidden"
       >
         <div className="h-full w-full shrink-0 snap-start snap-always">
-          <Page1Ring data={data} smoothness={smoothness} />
+          <Page1Ring data={data} smoothness={smoothness} ringSize={ringSize} />
         </div>
         <div className="h-full w-full shrink-0 snap-start snap-always">
           <Page2Mandala data={data} />
@@ -70,7 +75,9 @@ export default function SessionCarousel({ data, onEndSession }: SessionCarouselP
         contactLost={data.contactLost}
         sessionActive={data.sessionActive}
         onEnd={onEndSession}
-        page1={activeIndex === 0 ? { device: data.device, smoothness, onSmoothnessChange: setSmoothness } : undefined}
+        page1={
+          activeIndex === 0 ? { device: data.device, smoothness, onSmoothnessChange: setSmoothness, ringSize, onRingSizeChange: setRingSize } : undefined
+        }
       />
 
       <div
