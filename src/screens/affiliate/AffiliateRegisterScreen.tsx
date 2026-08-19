@@ -7,6 +7,15 @@ import { registerAffiliate } from '@/lib/affiliate'
 // comment). Uniqueness of username is enforced server-side (api/affiliate/
 // register.ts, DB unique constraint) — this form just surfaces whatever
 // error comes back, it doesn't pre-check itself.
+//
+// ?ref=USERNAME_UPLINE (2-tier referral override, commissions.ts) is read
+// once at module-render time — no cookie, unlike BeliLandingScreen's
+// 30-day one: registration is a single immediate action (land, fill form,
+// submit), not a funnel that might resume days later. A missing/invalid
+// ref is resolved server-side (register.ts) to "no referral", never
+// blocks signup.
+const referredBy = new URLSearchParams(window.location.search).get('ref') ?? undefined
+
 export default function AffiliateRegisterScreen() {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
@@ -20,7 +29,7 @@ export default function AffiliateRegisterScreen() {
     if (submitting || !name.trim() || !email.trim() || !username.trim()) return
     setSubmitting(true)
     setError(null)
-    const result = await registerAffiliate({ name, email, username })
+    const result = await registerAffiliate({ name, email, username, referredBy })
     setSubmitting(false)
     if (result.error) {
       setError(result.error)

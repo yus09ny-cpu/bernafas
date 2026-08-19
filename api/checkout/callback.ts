@@ -1,15 +1,13 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { supabaseAdmin } from '../_lib/supabaseAdmin.js'
+import { recordCommissionsForPaidOrder } from '../_lib/commissions.js'
 
 // ToyyibPay's server-to-server callback (billCallbackUrl in create-bill.ts)
 // — POSTs application/x-www-form-urlencoded, not JSON. status_id: 1 = paid,
-// 2 = pending, 3 = failed (ToyyibPay's own convention). Only flips
-// orders.status to 'paid'; does NOT create any affiliate_commissions row —
-// commission creation is explicitly deferred until the rate decision lands
-// (spec's own instruction), so a paid order sits with affiliate_ref filled
-// but no commission row yet. Whoever builds the commission-calculation pass
-// later reads FROM orders (status='paid', affiliate_ref is not null), not
-// from anything this callback writes beyond order status.
+// 2 = pending, 3 = failed (ToyyibPay's own convention). On a paid order,
+// flips orders.status AND triggers commission calculation
+// (recordCommissionsForPaidOrder, commissions.ts) — the rate decision has
+// landed, so this no longer just leaves affiliate_ref sitting unprocessed.
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
     res.status(405).send('Method not allowed')
@@ -26,11 +24,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   if (statusId === '1') {
-    const { error } = await supabaseAdmin
+    const { data: order, error } = await supabaseAdmin
       .from('orders')
       .update({ status: 'paid', paid_at: new Date().toISOString() })
       .eq('id', orderId)
-    if (error) console.error('[api/checkout/callback] order update (paid) failed:', error.message)
+      .select('id, affiliate_ref, amount, created_at')
+      .single()
+
+    if (error) {
+      console.error('[api/checkout/callback] order update (paid) failed:', error.message)
+    } else {
+      await recordCommissionsForPaidOrder(order)
+    }
   } else if (statusId === '3') {
     const { error } = await supabaseAdmin.from('orders').update({ status: 'failed' }).eq('id', orderId)
     if (error) console.error('[api/checkout/callback] order update (failed) failed:', error.message)

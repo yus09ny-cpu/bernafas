@@ -1,20 +1,24 @@
 import { useEffect, useState } from 'react'
-import { Loader2, Download, MousePointerClick, CircleDollarSign } from 'lucide-react'
+import { Loader2, Download, MousePointerClick, CircleDollarSign, Share2 } from 'lucide-react'
 import { fetchAffiliateDashboard, fetchAffiliateBookUrl, type AffiliateDashboardData } from '@/lib/affiliate'
 
 interface AffiliateDashboardScreenProps {
   affiliateId: string
 }
 
+function formatRM(amount: number): string {
+  return `RM${amount.toFixed(2)}`
+}
+
 // /affiliate/dashboard/:id — spec item 5, kept deliberately simple: click
 // count + real sale counts (from `orders`, not affiliate_commissions — see
-// api/affiliate/dashboard.ts's own comment on why), no ringgit amounts.
-// "Jualan Disahkan" and the commission-pending note are deliberately two
-// separate lines — a real sale is tracked and counted regardless of
-// whether the commission rate has been set yet, so an affiliate never
-// reads "0 Jualan" as "the tracking is broken." `affiliateId` doubles as
-// this screen's only access control (see dashboard.ts's comment on the gap
-// that leaves) — no separate affiliate login exists yet.
+// api/affiliate/dashboard.ts's own comment on why), plus real commission
+// RM totals now that the rate decision has landed (commissions.ts) — split
+// by source (own sales vs. the 5% referral override from a downline) so
+// an affiliate with referrals can see both income streams distinctly.
+// `affiliateId` doubles as this screen's only access control (see
+// dashboard.ts's comment on the gap that leaves) — no separate affiliate
+// login exists yet.
 export default function AffiliateDashboardScreen({ affiliateId }: AffiliateDashboardScreenProps) {
   const [data, setData] = useState<AffiliateDashboardData | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -67,6 +71,10 @@ export default function AffiliateDashboardScreen({ affiliateId }: AffiliateDashb
     )
   }
 
+  const totalPending = data.commissions.sale.pending + data.commissions.referralOverride.pending
+  const totalPaid = data.commissions.sale.paid + data.commissions.referralOverride.paid
+  const inviteUrl = `${window.location.origin}/affiliate/daftar?ref=${data.affiliate.username}`
+
   return (
     <div
       className="flex h-full w-full flex-col items-center gap-6 overflow-y-auto px-6 py-10 text-center"
@@ -94,6 +102,28 @@ export default function AffiliateDashboardScreen({ affiliateId }: AffiliateDashb
         <p className="text-xs text-[var(--color-text-muted)]">Menunggu pembayaran: {data.pendingSales}</p>
       )}
 
+      <div className="flex w-full max-w-xs flex-col gap-2 rounded-2xl bg-white/70 p-4 text-left">
+        <span className="text-sm font-semibold text-[var(--color-text)]">Komisen</span>
+        <div className="flex items-center justify-between text-xs">
+          <span className="text-[var(--color-text-muted)]">Daripada jualan sendiri</span>
+          <span className="font-medium text-[var(--color-text)]">
+            {formatRM(data.commissions.sale.paid)} dibayar · {formatRM(data.commissions.sale.pending)} pending
+          </span>
+        </div>
+        <div className="flex items-center justify-between text-xs">
+          <span className="text-[var(--color-text-muted)]">Daripada rujukan</span>
+          <span className="font-medium text-[var(--color-text)]">
+            {formatRM(data.commissions.referralOverride.paid)} dibayar · {formatRM(data.commissions.referralOverride.pending)} pending
+          </span>
+        </div>
+        <div className="mt-1 flex items-center justify-between border-t border-[var(--color-border)] pt-2 text-sm">
+          <span className="font-semibold text-[var(--color-text)]">Jumlah</span>
+          <span className="font-bold text-[var(--color-primary-dark)]">
+            {formatRM(totalPaid)} dibayar · {formatRM(totalPending)} pending
+          </span>
+        </div>
+      </div>
+
       <button
         type="button"
         onClick={handleDownload}
@@ -104,9 +134,15 @@ export default function AffiliateDashboardScreen({ affiliateId }: AffiliateDashb
       </button>
       {downloadError && <p className="max-w-xs text-sm text-[var(--color-warm)]">{downloadError}</p>}
 
-      <p className="max-w-xs text-xs text-[var(--color-text-muted)]">
-        Komisen: akan dikira tidak lama lagi — kadar belum ditetapkan.
-      </p>
+      <div className="flex w-full max-w-xs flex-col gap-2 rounded-2xl bg-white/60 p-4 text-left">
+        <span className="flex items-center gap-1.5 text-sm font-semibold text-[var(--color-text)]">
+          <Share2 size={16} /> Jemput Affiliate Lain
+        </span>
+        <span className="text-xs text-[var(--color-text-muted)]">
+          Dapat 5% tambahan daripada setiap jualan mereka, selagi mereka terus jual.
+        </span>
+        <div className="break-all rounded-xl bg-white/80 px-3 py-2 text-xs text-[var(--color-primary-dark)]">{inviteUrl}</div>
+      </div>
     </div>
   )
 }

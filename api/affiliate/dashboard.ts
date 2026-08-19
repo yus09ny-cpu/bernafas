@@ -2,21 +2,17 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { supabaseAdmin } from '../_lib/supabaseAdmin.js'
 
 // GET /api/affiliate/dashboard?id=<affiliate uuid> — spec item 5's "ringkas"
-// dashboard data: click count + real sale counts, NO ringgit amounts
-// (affiliate_commission_rates.rate_value is unset — see the migration's
-// header comment — so any amount shown here would be fabricated/misleading;
-// deliberately not summed).
+// dashboard data: click count + real sale counts + commission RM totals,
+// broken down by source (own sales vs. referral override) and status
+// (pending/paid). Rate decision has landed (see api/_lib/commissions.ts),
+// so RM amounts are real now — no longer withheld pending a rate decision.
 //
 // confirmedSales/pendingSales are counted straight from `orders`
-// (WHERE affiliate_ref = username), NOT from affiliate_commissions —
-// commission rows don't exist yet (no code creates them, on purpose, until
-// a rate is set), so counting from that table always read 0 even after a
-// real, paid sale came through. An affiliate seeing "0 Jualan" after
-// actually selling a copy reads as "the tracking is broken," which it
-// isn't — the sale itself was always captured in `orders.affiliate_ref`
-// (see api/checkout/create-bill.ts); only the commission AMOUNT is
-// pending on the rate decision. Counting orders directly fixes the
-// confusing number without needing that decision first.
+// (WHERE affiliate_ref = username), NOT derived from affiliate_commissions
+// row count — an order and its commission row(s) are created at different
+// times (order at checkout, commission only once ToyyibPay confirms
+// payment), so counting sales via commissions would still undercount
+// between those two moments.
 //
 // Access model: the affiliate's row `id` (uuid) doubles as an unguessable
 // capability token — there's no separate login for affiliates (the
@@ -53,19 +49,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return
   }
 
-  const [{ count: clickCount, error: clickError }, { data: orders, error: orderError }] = await Promise.all([
-    supabaseAdmin
-      .from('affiliate_clicks')
-      .select('id', { count: 'exact', head: true })
-      .eq('affiliate_username', affiliate.username),
-    supabaseAdmin
-      .from('orders')
-      .select('status')
-      .eq('affiliate_ref', affiliate.username),
-  ])
+  const [{ count: clickCount, error: clickError }, { data: orders, error: orderError }, { data: commissions, error: commissionError }] =
+    await Promise.all([
+      supabaseAdmin
+        .from('affiliate_clicks')
+        .select('id', { count: 'exact', head: true })
+        .eq('affiliate_username', affiliate.username),
+      supabaseAdmin.from('orders').select('status').eq('affiliate_ref', affiliate.username),
+      supabaseAdmin
+        .from('affiliate_commissions')
+        .select('commission_type, status, amount')
+        .eq('affiliate_username', affiliate.username),
+    ])
 
-  if (clickError || orderError) {
-    console.error('[api/affiliate/dashboard] stats select failed:', clickError?.message, orderError?.message)
+  if (clickError || orderError || commissionError) {
+    console.error(
+      '[api/affiliate/dashboard] stats select failed:',
+      clickError?.message,
+      orderError?.message,
+      commissionError?.message,
+    )
     res.status(500).json({ error: 'Gagal muatkan statistik.' })
     return
   }
@@ -77,10 +80,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     else if (row.status === 'pending') pendingSales++
   }
 
+  // RM totals by (commission_type x status) — 'sale' = affiliate's own
+  // sales, 'referral_override' = the 5% they earn from a downline's
+  // sales. Kept as two separate totals rather than one combined number so
+  // an affiliate with a downline can see both income sources distinctly
+  // (spec's own ask).
+  const commissionTotals = {
+    sale: { pending: 0, paid: 0 },
+    referralOverride: { pending: 0, paid: 0 },
+  }
+  for (const row of commissions ?? []) {
+    const bucket = row.commission_type === 'referral_override' ? commissionTotals.referralOverride : commissionTotals.sale
+    const amount = typeof row.amount === 'number' ? row.amount : Number(row.amount ?? 0)
+    if (row.status === 'paid') bucket.paid += amount
+    else bucket.pending += amount
+  }
+
   res.status(200).json({
     affiliate: { username: affiliate.username, name: affiliate.name, status: affiliate.status },
     clickCount: clickCount ?? 0,
     confirmedSales,
     pendingSales,
+    commissions: commissionTotals,
   })
 }

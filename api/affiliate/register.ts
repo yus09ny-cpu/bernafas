@@ -3,7 +3,7 @@ import { supabaseAdmin } from '../_lib/supabaseAdmin.js'
 
 const USERNAME_PATTERN = /^[a-z0-9_-]{3,32}$/
 
-// POST /api/affiliate/register — { name, email, username }.
+// POST /api/affiliate/register — { name, email, username, referredBy? }.
 // Uniqueness (spec item 2's "sahkan keunikan username sebelum simpan") is
 // enforced by the DB's own `unique` constraints on affiliates.username/
 // .email (see 0003_affiliate_program.sql) — insert-then-catch-23505 rather
@@ -15,7 +15,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return
   }
 
-  const { name, email, username } = (req.body ?? {}) as { name?: string; email?: string; username?: string }
+  const { name, email, username, referredBy } = (req.body ?? {}) as {
+    name?: string
+    email?: string
+    username?: string
+    referredBy?: string
+  }
 
   if (!name?.trim() || !email?.trim() || !username?.trim()) {
     res.status(400).json({ error: 'Nama, e-mel, dan username diperlukan.' })
@@ -34,9 +39,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return
   }
 
+  // Referral (2-tier commission override, commissions.ts) — resolved to a
+  // real existing username or left null, never trusted as opaque text. A
+  // broken/typo'd/self ?ref= link degrades to "no referral" rather than
+  // blocking registration — the referred person still gets to sign up,
+  // they just don't have an upline. Self-referral (?ref= pointing at the
+  // exact username someone is about to register) is the one case
+  // explicitly rejected outright rather than silently dropped, since it's
+  // never a legitimate typo.
+  let referredByUsername: string | null = null
+  const normalizedReferredBy = referredBy?.trim().toLowerCase()
+  if (normalizedReferredBy && normalizedReferredBy !== normalizedUsername) {
+    const { data: upline } = await supabaseAdmin.from('affiliates').select('username').eq('username', normalizedReferredBy).maybeSingle()
+    if (upline) referredByUsername = upline.username
+  }
+
   const { data, error } = await supabaseAdmin
     .from('affiliates')
-    .insert({ name: name.trim(), email: normalizedEmail, username: normalizedUsername, status: 'pending' })
+    .insert({
+      name: name.trim(),
+      email: normalizedEmail,
+      username: normalizedUsername,
+      status: 'pending',
+      referred_by_username: referredByUsername,
+    })
     .select('id, username, status')
     .single()
 
