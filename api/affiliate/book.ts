@@ -10,7 +10,7 @@ import { convertDocxToPdf } from '../_lib/convertDocxToPdf.js'
 // update") — the next /api/affiliate/book request per affiliate
 // regenerates instead of reusing affiliate_book_generations' cached row.
 // Change this string whenever buku/INI_JANTUNGMU_template.docx is edited.
-const BOOK_VERSION = 'v1'
+const BOOK_VERSION = 'v2'
 
 const TEMPLATE_PATH = path.join(process.cwd(), 'buku', 'INI_JANTUNGMU_template.docx')
 const STORAGE_BUCKET = 'affiliate-books'
