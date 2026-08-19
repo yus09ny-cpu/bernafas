@@ -15,6 +15,8 @@
 // the user picks for that particular sitting via TechniquePicker.tsx), not
 // a schedule Bernafas assigns automatically.
 
+import { DAILY_SCHEDULE, getSlotForHour } from '@/lib/program40/dailySchedule'
+
 export type Program40Phase = 'fondasi' | 'pendalaman' | 'integrasi'
 
 export type Program40Technique =
@@ -65,12 +67,21 @@ export function getAvailableTechniquesForDay(day: number): Program40Technique[] 
 }
 
 // A sensible pre-selected default for TechniquePicker/Program40Hub's
-// preview — NOT a hard schedule the app enforces. Mirrors Bab 13's Jadual
-// Harian time-of-day pattern (pagi & malam -> nafas_jantung, sepanjang hari
-// -> koheren_pantas); the user can always override the picker's selection.
-// `hour` is injectable for tests/previews, defaults to the real local hour.
+// preview — NOT a hard schedule the app enforces; the user can always
+// override the picker's selection. Reads DAILY_SCHEDULE (dailySchedule.ts,
+// Bab 13's Jadual Harian) rather than its own separate time-of-day rule, so
+// this suggestion and JadualHarianCard's displayed schedule can never drift
+// apart into two different sources of truth. `hour` is injectable for
+// tests/previews, defaults to the real local hour.
 export function suggestTechniqueForNow(day: number, hour: number = new Date().getHours()): Program40Technique {
   const available = getAvailableTechniquesForDay(day)
-  const timeBased: Program40Technique = hour < 11 || hour >= 19 ? 'nafas_jantung' : 'koheren_pantas'
-  return available.includes(timeBased) ? timeBased : available[0]
+  const phase = getPhaseForDay(day)
+  const slot = getSlotForHour(hour)
+  const entry = DAILY_SCHEDULE[phase].find(e => e.slot === slot)
+  // entry's own technique list is only ever a subset of what's already
+  // unlocked for this phase (kept consistent by hand in dailySchedule.ts),
+  // but fall back to the first available technique defensively rather than
+  // trust that invariant blindly.
+  const scheduled = entry?.techniques.find(t => available.includes(t))
+  return scheduled ?? available[0]
 }

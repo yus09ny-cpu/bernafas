@@ -5,6 +5,7 @@ import { getEnrollment, createEnrollment } from '@/lib/program40/enrollment'
 import { getPhaseForDay, suggestTechniqueForNow, PHASE_META, TECHNIQUE_META, PROGRAM_40_DAY_TOTAL } from '@/lib/program40/curriculum'
 import Program40SessionScreen from '@/screens/program40/Program40SessionScreen'
 import Program40Dashboard from '@/screens/program40/Program40Dashboard'
+import JadualHarianCard from '@/components/program40/JadualHarianCard'
 import type { Program40Enrollment } from '@/lib/program40/types'
 
 type View = 'loading' | 'landing' | 'home' | 'session' | 'dashboard'
@@ -108,8 +109,8 @@ export default function Program40Hub() {
 
   return (
     <div
-      className="flex h-full flex-col items-center justify-center gap-6 px-8 text-center"
-      style={{ paddingBottom: 'calc(var(--nav-height) + var(--safe-bottom))' }}
+      className="flex h-full flex-col items-center gap-6 overflow-y-auto px-8 py-10 text-center"
+      style={{ paddingBottom: 'calc(var(--nav-height) + 2rem + var(--safe-bottom))' }}
     >
       <div className="flex h-16 w-16 items-center justify-center rounded-full bg-white/70 text-[var(--color-primary)]">
         {isCompleted ? <PartyPopper size={30} /> : <Sparkles size={30} />}
@@ -145,6 +146,8 @@ export default function Program40Hub() {
           Lihat Dashboard 40 Hari
         </button>
       </div>
+
+      <JadualHarianCard phase={phase} />
     </div>
   )
 }
