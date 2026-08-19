@@ -11,6 +11,8 @@ import type { LiveSessionData } from '@/screens/session/types'
 interface SessionCarouselProps {
   data: LiveSessionData
   onEndSession: () => void
+  // Passed straight through to SessionHeader — see its own doc comment.
+  endedLabel?: string
 }
 
 const PAGE_COUNT = 4
@@ -23,7 +25,7 @@ const PAGE_COUNT = 4
 // child, no extra locking logic needed. SessionHeader and DotIndicator are
 // rendered once here (not per-page) so they stay pinned over whichever page
 // is currently in view.
-export default function SessionCarousel({ data, onEndSession }: SessionCarouselProps) {
+export default function SessionCarousel({ data, onEndSession, endedLabel }: SessionCarouselProps) {
   const trackRef = useRef<HTMLDivElement>(null)
   const [activeIndex, setActiveIndex] = useState(0)
   // Lifted from Page1Ring: SessionHeader now renders the smoothness control
@@ -75,6 +77,7 @@ export default function SessionCarousel({ data, onEndSession }: SessionCarouselP
         contactLost={data.contactLost}
         sessionActive={data.sessionActive}
         onEnd={onEndSession}
+        endedLabel={endedLabel}
         page1={
           activeIndex === 0 ? { device: data.device, smoothness, onSmoothnessChange: setSmoothness, ringSize, onRingSizeChange: setRingSize } : undefined
         }

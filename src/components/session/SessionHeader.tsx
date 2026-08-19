@@ -26,6 +26,13 @@ interface SessionHeaderProps {
   sessionActive: boolean
   onEnd: () => void
   page1?: Page1HeaderExtras
+  // Overrides the "Sesi Baharu"/RotateCcw-labeled second-press action for
+  // callers where that press doesn't mean "start over" — e.g. the 40-day
+  // program's device runner, where the same button is repurposed to
+  // save-and-exit a one-off scheduled session instead of restarting it.
+  // Defaults to the original label so every other caller (the Sesi tab)
+  // is unaffected.
+  endedLabel?: string
 }
 
 // Floating header shared by all four carousel pages — dark translucent pills
@@ -45,9 +52,9 @@ interface SessionHeaderProps {
 // navigate away — the user may still swipe/tap back through 1-3); once
 // ended, the same button becomes a refresh icon that starts a new session.
 // Same callback either way — SessionScreen decides which action it is.
-export default function SessionHeader({ bpm, isDeviceConnected, contactLost, sessionActive, onEnd, page1 }: SessionHeaderProps) {
+export default function SessionHeader({ bpm, isDeviceConnected, contactLost, sessionActive, onEnd, page1, endedLabel = 'Sesi Baharu' }: SessionHeaderProps) {
   const EndIcon = sessionActive ? X : RotateCcw
-  const endLabel = sessionActive ? 'Tamatkan sesi' : 'Sesi baharu'
+  const endLabel = sessionActive ? 'Tamatkan sesi' : endedLabel
 
   const bpmBadge = isDeviceConnected ? (
     contactLost ? (
@@ -116,7 +123,7 @@ export default function SessionHeader({ bpm, isDeviceConnected, contactLost, ses
         className="pointer-events-auto flex items-center gap-1.5 rounded-full bg-black/30 px-3 py-1.5 text-xs font-medium text-white backdrop-blur-sm transition-transform active:scale-90"
       >
         <EndIcon size={16} />
-        {sessionActive ? 'Tamat Sesi' : 'Sesi Baharu'}
+        {sessionActive ? 'Tamat Sesi' : endedLabel}
       </button>
     </div>
   )
