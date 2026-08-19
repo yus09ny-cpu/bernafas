@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { supabaseAdmin } from '../_lib/supabaseAdmin'
+import { supabaseAdmin } from '../_lib/supabaseAdmin.js'
 
 // ToyyibPay's server-to-server callback (billCallbackUrl in create-bill.ts)
 // — POSTs application/x-www-form-urlencoded, not JSON. status_id: 1 = paid,

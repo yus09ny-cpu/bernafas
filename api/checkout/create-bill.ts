@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { supabaseAdmin } from '../_lib/supabaseAdmin'
+import { supabaseAdmin } from '../_lib/supabaseAdmin.js'
 
 // Minimal ToyyibPay checkout skeleton — built as scaffolding for item 6
 // (affiliate_ref needs somewhere to flow INTO), not a finished payment

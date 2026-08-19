@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { supabaseAdmin } from '../_lib/supabaseAdmin'
+import { supabaseAdmin } from '../_lib/supabaseAdmin.js'
 
 // GET /api/affiliate/dashboard?id=<affiliate uuid> — spec item 5's "ringkas"
 // dashboard data: click count + real sale counts, NO ringgit amounts

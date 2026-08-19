@@ -1,9 +1,9 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
-import { supabaseAdmin } from '../_lib/supabaseAdmin'
-import { renderAffiliateDocx } from '../_lib/docxTemplate'
-import { convertDocxToPdf } from '../_lib/convertDocxToPdf'
+import { supabaseAdmin } from '../_lib/supabaseAdmin.js'
+import { renderAffiliateDocx } from '../_lib/docxTemplate.js'
+import { convertDocxToPdf } from '../_lib/convertDocxToPdf.js'
 
 // Bumping this invalidates every affiliate's cached PDF (spec item 4/
 // affiliate_book_generations' own doc comment: "regenerate bila buku
