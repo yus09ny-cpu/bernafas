@@ -25,6 +25,30 @@ const CLOUDCONVERT_API_KEY = process.env.CLOUDCONVERT_API_KEY
 
 const SOURCE_FILENAME = 'INI_JANTUNGMU.docx'
 
+// The SDK throws `new Error(res.statusText, { cause: res })` for any non-2xx
+// HTTP response (see node_modules/cloudconvert/built/lib/CloudConvert.js) —
+// the body is left UNREAD on that thrown Response, so `err.message` alone is
+// just the generic statusText ("Payment Required", "Unprocessable Entity",
+// ...). CloudConvert's actual body is JSON (`{message, code}`, e.g.
+// `{"message":"Your account has run out of conversion credits",
+// "code":"CREDITS_EXCEEDED"}` for 402) — read it here so callers get the
+// real reason instead of the generic status text.
+async function describeCloudConvertError(err: unknown): Promise<string> {
+  if (!(err instanceof Error)) return String(err)
+  const cause = (err as { cause?: unknown }).cause
+  if (cause instanceof Response && !cause.bodyUsed) {
+    try {
+      const body = (await cause.json()) as { message?: string; code?: string }
+      if (body?.message) {
+        return `${cause.status}${body.code ? ` ${body.code}` : ''} — ${body.message}`
+      }
+    } catch {
+      // Body wasn't JSON, or reading it failed — fall through to statusText.
+    }
+  }
+  return err.message
+}
+
 export async function convertDocxToPdf(docxBuffer: Buffer): Promise<Buffer> {
   if (!CLOUDCONVERT_API_KEY) {
     throw new Error('CLOUDCONVERT_API_KEY tidak ditetapkan.')
@@ -32,25 +56,30 @@ export async function convertDocxToPdf(docxBuffer: Buffer): Promise<Buffer> {
 
   const cloudConvert = new CloudConvert(CLOUDCONVERT_API_KEY)
 
-  let job = await cloudConvert.jobs.create({
-    tasks: {
-      'import-docx': {
-        operation: 'import/base64',
-        file: docxBuffer.toString('base64'),
-        filename: SOURCE_FILENAME,
+  let job
+  try {
+    job = await cloudConvert.jobs.create({
+      tasks: {
+        'import-docx': {
+          operation: 'import/base64',
+          file: docxBuffer.toString('base64'),
+          filename: SOURCE_FILENAME,
+        },
+        'convert-to-pdf': {
+          operation: 'convert',
+          input: 'import-docx',
+          output_format: 'pdf',
+          engine: 'office',
+        },
+        'export-pdf': {
+          operation: 'export/url',
+          input: 'convert-to-pdf',
+        },
       },
-      'convert-to-pdf': {
-        operation: 'convert',
-        input: 'import-docx',
-        output_format: 'pdf',
-        engine: 'office',
-      },
-      'export-pdf': {
-        operation: 'export/url',
-        input: 'convert-to-pdf',
-      },
-    },
-  })
+    })
+  } catch (err) {
+    throw new Error(`CloudConvert job creation gagal: ${await describeCloudConvertError(err)}`)
+  }
 
   job = await cloudConvert.jobs.wait(job.id)
 

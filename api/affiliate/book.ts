@@ -90,7 +90,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       pdfBuffer = await convertDocxToPdf(renderedDocx)
     } catch (err) {
       console.error('[api/affiliate/book] docx->pdf conversion failed:', err)
-      res.status(502).json({ error: 'Gagal jana PDF. Cuba sekali lagi sebentar lagi.' })
+      // Surface the real reason (e.g. CloudConvert quota/credits exhausted)
+      // instead of a generic "cuba lagi" — same pattern as the hrv_sessions
+      // save-error fix: a hidden real cause here just wastes time re-tracing
+      // the same 502 later. See convertDocxToPdf.ts's describeCloudConvertError.
+      const detail = err instanceof Error ? err.message : String(err)
+      res.status(502).json({ error: `Gagal jana PDF: ${detail}` })
       return
     }
 
