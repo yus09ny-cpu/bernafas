@@ -2,12 +2,11 @@ import { supabase } from '@/lib/supabase'
 
 // Client-side helpers for the RM19.90/bulan app-access subscription
 // (profiles.subscription_tier/subscription_expiry — see
-// supabase/migrations/0005_sensor_and_subscription.sql). Deliberately NOT
-// used anywhere to gate rendering yet — App.tsx still grants full access to
-// every signed-in user regardless of what this returns. That's a separate,
-// later decision (see this migration's own header) — these functions exist
-// so the subscribe-and-check UI (AccountMenu.tsx) is fully testable now,
-// not so the gate is silently already live somewhere.
+// supabase/migrations/0005_sensor_and_subscription.sql). fetchSubscriptionStatus
+// backs AccountMenu.tsx's popover display; App.tsx's own gate (wired
+// 2026-08-20) goes through useAppAccess/api/app-access/status.ts instead —
+// that endpoint also accounts for a paid pakej_lifetime order, which this
+// simpler status read does not.
 
 export interface SubscriptionStatus {
   tier: 'free' | 'active'

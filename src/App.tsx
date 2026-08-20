@@ -7,7 +7,9 @@ import JournalScreen from '@/screens/JournalScreen'
 import GuidesScreen from '@/screens/GuidesScreen'
 import NafasCloudScreen from '@/screens/NafasCloudScreen'
 import AuthScreen from '@/screens/AuthScreen'
+import SubscriptionRequiredScreen from '@/screens/SubscriptionRequiredScreen'
 import { useAuth } from '@/hooks/useAuth'
+import { useAppAccess } from '@/hooks/useAppAccess'
 
 const SCREENS: Record<Tab, () => ReactElement> = {
   session: SessionScreen,
@@ -26,17 +28,36 @@ const SCREENS: Record<Tab, () => ReactElement> = {
 // same as ConnectScreen's device connection was never persisted across a
 // session boundary before this shell existed.
 //
-// Gated behind auth: every tab (not just Sesi) needs a signed-in user, so
-// the check sits here, above BottomNav/SCREENS, rather than inside
-// SessionScreen alone. 'loading' (checking for an existing persisted
-// session on first paint) renders nothing rather than flashing AuthScreen
-// then immediately replacing it for already-logged-in returning users.
+// Gated behind auth AND app-access (wired 2026-08-20 — no existing users to
+// grandfather, confirmed with product owner, so no transition/allowlist
+// logic needed here, just a direct gate). Two layers, checked in order:
+// signed-in (useAuth) first, then subscription/lifetime-purchase access
+// (useAppAccess) — a session with no active RM19.90/bulan subscription and
+// no paid pakej_lifetime order sees SubscriptionRequiredScreen instead of
+// the tab shell, for every tab (not just Sesi), same reasoning as the auth
+// gate above it. AccountMenu renders on the blocked screen too (fixed,
+// outside the `main` swap below) so a blocked user can still sign out or
+// see their subscription state, not just stare at a locked screen with no
+// way out.
+// 'loading' (either auth OR access-check in flight) renders nothing rather
+// than flashing AuthScreen/SubscriptionRequiredScreen then immediately
+// replacing it for already-entitled returning users.
 export default function App() {
-  const { status } = useAuth()
+  const { session, status } = useAuth()
   const [tab, setTab] = useState<Tab>('session')
+  const access = useAppAccess(status === 'signed-in' ? session : null)
 
   if (status === 'loading') return null
   if (status !== 'signed-in') return <AuthScreen />
+  if (access.status === 'loading') return null
+  if (access.status === 'blocked') {
+    return (
+      <div className="relative h-dvh w-full overflow-hidden">
+        <SubscriptionRequiredScreen recheck={access.recheck} />
+        <AccountMenu />
+      </div>
+    )
+  }
 
   const ActiveScreen = SCREENS[tab]
 

@@ -19,12 +19,12 @@ export default function AccountMenu() {
   const [open, setOpen] = useState(false)
   const [signingOut, setSigningOut] = useState(false)
 
-  // Subscription status display + subscribe action — reads/writes the same
-  // profiles.subscription_tier/subscription_expiry App.tsx does NOT gate on
-  // yet (see supabase/migrations/0005_sensor_and_subscription.sql's header).
-  // This section is fully functional (real ToyyibPay checkout once
-  // TOYYIBPAY_SECRET_KEY/TOYYIBPAY_CATEGORY_CODE are set in Vercel, real
-  // status read) — it just doesn't LOCK anything out yet.
+  // Subscription status display + subscribe action — reads the same
+  // profiles.subscription_tier/subscription_expiry App.tsx's gate
+  // (useAppAccess, wired 2026-08-20) checks. This popover is reachable even
+  // when SubscriptionRequiredScreen is blocking the rest of the app (App.tsx
+  // renders AccountMenu on both branches) — a second subscribe entry point
+  // alongside that screen's own CTA, not a replacement for it.
   const [subscription, setSubscription] = useState<SubscriptionStatus | null>(null)
   const [subscribing, setSubscribing] = useState(false)
   const [subscribeError, setSubscribeError] = useState<string | null>(null)

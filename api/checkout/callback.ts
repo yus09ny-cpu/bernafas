@@ -10,11 +10,13 @@ import { recordCommissionsForPaidOrder } from '../_lib/commissions.js'
 // landed, so this no longer just leaves affiliate_ref sitting unprocessed.
 //
 // product_type === 'app_subscription' ALSO extends the buying profile's
-// subscription — see extendAppSubscription() below. Reminder: this only
-// ever WRITES subscription_tier/subscription_expiry; nothing in this repo
-// reads those columns to actually gate access yet (App.tsx isn't wired —
-// deliberate, see supabase/migrations/0005_sensor_and_subscription.sql's
-// header).
+// subscription — see extendAppSubscription() below. App.tsx's gate
+// (useAppAccess -> api/app-access/status.ts, wired 2026-08-20) reads
+// exactly what this writes. Note this file does NOT write anything for
+// paid 'pakej_lifetime' orders — that product's "Akses aplikasi selamanya"
+// is checked live (a direct paid-order lookup) by app-access/status.ts
+// instead of being mirrored into profiles here; see that file's own
+// comment for why.
 const SUBSCRIPTION_PERIOD_DAYS = 30
 
 async function extendAppSubscription(orderId: string, userId: string | null): Promise<void> {
