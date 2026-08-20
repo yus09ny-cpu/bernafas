@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
-import { DoorOpen, LogOut, Loader2 } from 'lucide-react'
+import { DoorOpen, LogOut, Loader2, Truck } from 'lucide-react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { useAuth } from '@/hooks/useAuth'
 import { fetchSubscriptionStatus, startAppSubscriptionCheckout, type SubscriptionStatus } from '@/lib/subscription'
+import ShippingScreen from '@/screens/ShippingScreen'
 
 // Persistent account affordance, rendered once in App.tsx (not per-screen)
 // so it's reachable from every tab, not just one — the sign-out action has
@@ -18,6 +19,7 @@ export default function AccountMenu() {
   const { session, signOut } = useAuth()
   const [open, setOpen] = useState(false)
   const [signingOut, setSigningOut] = useState(false)
+  const [showShipping, setShowShipping] = useState(false)
 
   // Subscription status display + subscribe action — reads the same
   // profiles.subscription_tier/subscription_expiry App.tsx's gate
@@ -102,6 +104,18 @@ export default function AccountMenu() {
 
             <button
               type="button"
+              onClick={() => {
+                setOpen(false)
+                setShowShipping(true)
+              }}
+              className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm font-medium text-foreground transition-colors hover:bg-[var(--color-warm)]/10 hover:text-[var(--color-warm)]"
+            >
+              <Truck className="size-4" />
+              Penghantaran Sensor
+            </button>
+
+            <button
+              type="button"
               onClick={handleSignOut}
               disabled={signingOut}
               className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm font-medium text-foreground transition-colors hover:bg-[var(--color-warm)]/10 hover:text-[var(--color-warm)] disabled:opacity-50"
@@ -112,6 +126,8 @@ export default function AccountMenu() {
           </div>
         </PopoverContent>
       </Popover>
+
+      {showShipping && <ShippingScreen onClose={() => setShowShipping(false)} />}
     </div>
   )
 }

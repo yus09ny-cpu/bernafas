@@ -91,5 +91,30 @@ export async function recomputeEnrollmentProgress(userId: string): Promise<{ dat
     console.error('[program40/enrollment] update failed:', updateError.message)
     return { data: null, error: updateError.message }
   }
+
+  // Fire-and-forget — status='completed' is written on EVERY session save
+  // once all 40 days are covered (not just the first), so this call
+  // happens repeatedly; api/notify/program40-completed.ts's own
+  // completed_notified_at guard is what makes the actual admin notice
+  // fire only once, not this check. Never awaited/blocking: a failed
+  // notification must not fail the session save that triggered this.
+  if (updated.status === 'completed') {
+    notifyProgram40Completed()
+  }
+
   return { data: fromRow(updated), error: null }
+}
+
+async function notifyProgram40Completed(): Promise<void> {
+  const { data: sessionData } = await supabase.auth.getSession()
+  const token = sessionData.session?.access_token
+  if (!token) return
+  try {
+    await fetch('/api/notify/program40-completed', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    })
+  } catch (err) {
+    console.error('[program40/enrollment] completion-notify request failed:', err)
+  }
 }
