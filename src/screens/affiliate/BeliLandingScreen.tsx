@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { recordAffiliateClick } from '@/lib/affiliate'
 import { setAffiliateRefCookie, getAffiliateRefCookie } from '@/lib/affiliateCookie'
+import { supabase } from '@/lib/supabase'
 
 // /beli?ref=USERNAME — spec item 6. Sets the 30-day attribution cookie and
 // logs the click ONLY when a ref is actually present in the URL (a direct
@@ -9,11 +10,12 @@ import { setAffiliateRefCookie, getAffiliateRefCookie } from '@/lib/affiliateCoo
 // affiliate visit untouched — that's the whole point of a 30-day
 // window: the buyer doesn't have to purchase on the same visit).
 // Prices below are the book's own stated prices (RM35 buku / RM499 pakej
-// lifetime, from buku/INI_JANTUNGMU_template.docx's own marketing copy),
-// not a number invented for this screen — separate from the UNSET
-// affiliate commission rate, which is a different number entirely.
+// lifetime / RM350 sensor-only — the actual amount charged is decided
+// server-side, api/_lib/pricing.ts; these are display copies of that same
+// source of truth, kept in sync by hand same as the original 2 always were).
 const PRODUCTS = [
   { type: 'buku' as const, label: 'Buku "Ini Jantungmu"', amount: 35 },
+  { type: 'sensor' as const, label: 'Sensor Sahaja', amount: 350 },
   { type: 'pakej_lifetime' as const, label: 'Pakej Buku + Sensor + Aplikasi (Lifetime)', amount: 499 },
 ]
 
@@ -30,16 +32,26 @@ export default function BeliLandingScreen() {
     }
   }, [])
 
-  const handleBuy = async (productType: string, amount: number) => {
+  const handleBuy = async (productType: string) => {
     if (submittingType) return
     setSubmittingType(productType)
     setError(null)
     setWarning(null)
     try {
+      // /beli stays guest-friendly (no login required — see this file's
+      // own header comment) — but if the visitor already happens to have a
+      // session (e.g. an existing app user clicking their own /beli link),
+      // attach it so the resulting order gets user_id set server-side
+      // instead of relying solely on the email they type in later.
+      const { data: sessionData } = await supabase.auth.getSession()
+      const token = sessionData.session?.access_token
       const response = await fetch('/api/checkout/create-bill', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ productType, amount, affiliateRef: getAffiliateRefCookie() }),
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ productType, affiliateRef: getAffiliateRefCookie() }),
       })
       const data = await response.json()
       if (!response.ok) {
@@ -74,7 +86,7 @@ export default function BeliLandingScreen() {
           <button
             key={product.type}
             type="button"
-            onClick={() => handleBuy(product.type, product.amount)}
+            onClick={() => handleBuy(product.type)}
             disabled={submittingType !== null}
             className="flex items-center justify-between gap-3 rounded-2xl bg-white/70 px-5 py-4 text-left transition-transform active:scale-[0.98] disabled:opacity-50"
           >

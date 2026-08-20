@@ -6,6 +6,13 @@
     "api/affiliate/book.ts": {
       "maxDuration": 60,
       "includeFiles": "buku/**"
+    },
+    "api/book/full.ts": {
+      "maxDuration": 60,
+      "includeFiles": "buku/**"
     }
-  }
+  },
+  "crons": [
+    { "path": "/api/check-subscriptions", "schedule": "0 0 * * *" }
+  ]
 }

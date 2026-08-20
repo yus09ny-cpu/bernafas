@@ -1,24 +1,27 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { supabaseAdmin } from '../_lib/supabaseAdmin.js'
+import { verifyUser } from '../_lib/verifyUser.js'
+import { PRODUCT_PRICES, PRODUCT_LABELS, isProductType } from '../_lib/pricing.js'
 
-// Minimal ToyyibPay checkout skeleton — built as scaffolding for item 6
-// (affiliate_ref needs somewhere to flow INTO), not a finished payment
-// feature. Pricing itself is deliberately NOT hardcoded here (same
-// reasoning as affiliate_commission_rates being left unset) — the caller
-// supplies amount, this route doesn't decide what a book/lifetime package
-// costs.
+// ToyyibPay checkout — now backs 4 product types (was 2): 'buku',
+// 'pakej_lifetime' (both pre-existing, /beli, guest-friendly), plus
+// 'sensor' (RM350, /beli, guest-friendly) and 'app_subscription' (RM19.90,
+// signed-in only — see the auth requirement below) added this session.
+//
+// Pricing is now a server-side constant (api/_lib/pricing.ts), NOT
+// client-supplied — the original code trusted whatever `amount` the caller
+// sent. See pricing.ts's own header for why fixing that now (not just for
+// the 2 new products) was in-scope.
 //
 // Degrades gracefully if TOYYIBPAY_SECRET_KEY/TOYYIBPAY_CATEGORY_CODE
-// aren't set in Vercel yet (they aren't, as of this file's creation — no
-// TOYYIBPAY_* env vars exist for this project) — the `orders` row (with
-// affiliate_ref filled) still gets created either way, so the affiliate
-// attribution plumbing itself is exercised end-to-end even before real
-// ToyyibPay credentials are added; `paymentUrl` is just null until then.
+// aren't set in Vercel yet (as of this file's original creation, they
+// weren't) — the `orders` row still gets created either way, so
+// affiliate-attribution/user_id plumbing is exercised end-to-end even
+// before real ToyyibPay credentials exist; `paymentUrl` is just null.
 const TOYYIBPAY_BASE_URL = 'https://toyyibpay.com'
 
 interface CreateBillBody {
   productType?: string
-  amount?: number // ringgit, not sen — converted below
   email?: string
   affiliateRef?: string | null
 }
@@ -29,23 +32,40 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return
   }
 
-  const { productType, amount, email, affiliateRef } = (req.body ?? {}) as CreateBillBody
+  const { productType, email, affiliateRef } = (req.body ?? {}) as CreateBillBody
 
-  if (productType !== 'buku' && productType !== 'pakej_lifetime') {
-    res.status(400).json({ error: 'productType mesti "buku" atau "pakej_lifetime".' })
+  if (!isProductType(productType)) {
+    res.status(400).json({ error: "productType mesti 'buku', 'pakej_lifetime', 'sensor', atau 'app_subscription'." })
     return
   }
-  if (!amount || amount <= 0) {
-    res.status(400).json({ error: 'amount diperlukan (RM, > 0).' })
+
+  // Authorization header is OPTIONAL for the 3 guest-checkout products
+  // (/beli is deliberately unauthenticated — see src/main.tsx's PublicRoot
+  // comment) but REQUIRED for app_subscription: a subscription only means
+  // something tied to a specific signed-in profile (check-subscriptions.ts
+  // extends profiles.subscription_expiry by user_id, there's no "guest
+  // subscription" concept), so there's nothing sensible to create without
+  // it.
+  const verifiedUser = await verifyUser(req)
+
+  if (productType === 'app_subscription' && !verifiedUser) {
+    res.status(401).json({ error: 'Sila log masuk dahulu untuk melanggan aplikasi.' })
     return
   }
+
+  const amount = PRODUCT_PRICES[productType]
 
   const { data: order, error: insertError } = await supabaseAdmin
     .from('orders')
     .insert({
       product_type: productType,
       amount,
-      email: email?.trim() || null,
+      // Prefer the verified email over whatever the client sent — for a
+      // signed-in caller, the token-verified address is the trustworthy
+      // one; for a guest checkout (no token), fall back to the form field
+      // as before.
+      email: verifiedUser?.email ?? email?.trim() ?? null,
+      user_id: verifiedUser?.id ?? null,
       status: 'pending',
       affiliate_ref: affiliateRef?.trim() || null,
     })
@@ -68,20 +88,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const siteUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://bernafas.my'
+  const { name: billName, description: billDescription } = PRODUCT_LABELS[productType]
+  const billEmail = verifiedUser?.email ?? email?.trim() ?? 'admin@bernafas.my'
 
   const form = new URLSearchParams({
     userSecretKey: secretKey,
     categoryCode,
-    billName: productType === 'buku' ? 'Ini Jantungmu — Buku' : 'Ini Jantungmu — Pakej Lifetime',
-    billDescription: productType === 'buku' ? 'Pembelian buku Ini Jantungmu' : 'Pakej Buku + Sensor + Aplikasi (Lifetime)',
+    billName,
+    billDescription,
     billPriceSetting: '1',
     billPayorInfo: '1',
     billAmount: String(Math.round(amount * 100)), // sen
     billReturnUrl: `${siteUrl}/beli/selesai`,
     billCallbackUrl: `${siteUrl}/api/checkout/callback`,
     billExternalReferenceNo: order.id,
-    billTo: email?.trim() || 'Pelanggan Bernafas',
-    billEmail: email?.trim() || 'admin@bernafas.my',
+    billTo: billEmail,
+    billEmail,
     billPhone: '',
   })
 

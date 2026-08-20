@@ -1,7 +1,8 @@
-import { useState } from 'react'
-import { DoorOpen, LogOut } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { DoorOpen, LogOut, Loader2 } from 'lucide-react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { useAuth } from '@/hooks/useAuth'
+import { fetchSubscriptionStatus, startAppSubscriptionCheckout, type SubscriptionStatus } from '@/lib/subscription'
 
 // Persistent account affordance, rendered once in App.tsx (not per-screen)
 // so it's reachable from every tab, not just one — the sign-out action has
@@ -17,6 +18,34 @@ export default function AccountMenu() {
   const { session, signOut } = useAuth()
   const [open, setOpen] = useState(false)
   const [signingOut, setSigningOut] = useState(false)
+
+  // Subscription status display + subscribe action — reads/writes the same
+  // profiles.subscription_tier/subscription_expiry App.tsx does NOT gate on
+  // yet (see supabase/migrations/0005_sensor_and_subscription.sql's header).
+  // This section is fully functional (real ToyyibPay checkout once
+  // TOYYIBPAY_SECRET_KEY/TOYYIBPAY_CATEGORY_CODE are set in Vercel, real
+  // status read) — it just doesn't LOCK anything out yet.
+  const [subscription, setSubscription] = useState<SubscriptionStatus | null>(null)
+  const [subscribing, setSubscribing] = useState(false)
+  const [subscribeError, setSubscribeError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!open || !session?.user.id) return
+    fetchSubscriptionStatus(session.user.id).then(({ data }) => setSubscription(data))
+  }, [open, session?.user.id])
+
+  const handleSubscribe = async () => {
+    if (subscribing) return
+    setSubscribing(true)
+    setSubscribeError(null)
+    const { paymentUrl, error } = await startAppSubscriptionCheckout()
+    if (error || !paymentUrl) {
+      setSubscribeError(error ?? 'Gagal mula langganan.')
+      setSubscribing(false)
+      return
+    }
+    window.location.href = paymentUrl
+  }
 
   const handleSignOut = async () => {
     if (signingOut) return
@@ -48,6 +77,29 @@ export default function AccountMenu() {
                 {session.user.email}
               </p>
             )}
+
+            <div className="space-y-1.5 border-y border-border py-3 text-xs">
+              <p className="font-medium text-foreground">
+                {subscription?.tier === 'active' ? 'Langganan aktif' : 'Belum melanggan'}
+              </p>
+              {subscription?.tier === 'active' && subscription.expiresAt && (
+                <p className="text-muted-foreground">
+                  Tamat: {new Date(subscription.expiresAt).toLocaleDateString('ms-MY', { day: 'numeric', month: 'long', year: 'numeric' })}
+                </p>
+              )}
+              {subscription?.tier !== 'active' && (
+                <button
+                  type="button"
+                  onClick={handleSubscribe}
+                  disabled={subscribing}
+                  className="flex w-full items-center justify-center gap-2 rounded-md bg-[var(--color-primary)]/10 px-2 py-2 font-medium text-[var(--color-primary)] transition-colors hover:bg-[var(--color-primary)]/20 disabled:opacity-50"
+                >
+                  {subscribing ? <Loader2 size={14} className="animate-spin" /> : 'Langgan RM19.90/bulan'}
+                </button>
+              )}
+              {subscribeError && <p className="text-[var(--color-warm)]">{subscribeError}</p>}
+            </div>
+
             <button
               type="button"
               onClick={handleSignOut}
