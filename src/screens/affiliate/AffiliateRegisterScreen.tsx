@@ -54,7 +54,8 @@ export default function AffiliateRegisterScreen() {
         <div className="flex flex-col gap-2">
           <h1 className="text-xl font-bold text-[var(--color-text)]">Pendaftaran diterima</h1>
           <p className="max-w-xs text-sm leading-relaxed text-[var(--color-text-muted)]">
-            Simpan pautan dashboard anda — ini satu-satunya cara untuk akses dashboard affiliate anda buat masa ini.
+            Simpan pautan dashboard anda, atau log masuk bila-bila masa guna e-mel ini di{' '}
+            <a href="/affiliate/log-masuk" className="underline">/affiliate/log-masuk</a>.
           </p>
         </div>
         <div className="w-full max-w-xs break-all rounded-2xl bg-white/70 p-4 text-sm text-[var(--color-primary-dark)]">
@@ -136,7 +137,9 @@ export default function AffiliateRegisterScreen() {
         </form>
       </div>
 
-      <span className="text-xs text-[var(--color-text-muted)]">&nbsp;</span>
+      <a href="/affiliate/log-masuk" className="text-xs text-[var(--color-text-muted)] underline-offset-4 hover:underline">
+        Sudah ada akaun? Log masuk
+      </a>
     </div>
   )
 }

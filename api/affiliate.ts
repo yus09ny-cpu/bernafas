@@ -4,20 +4,21 @@ import path from 'node:path'
 import { supabaseAdmin } from './_lib/supabaseAdmin.js'
 import { renderAffiliateDocx } from './_lib/docxTemplate.js'
 import { convertDocxToPdf } from './_lib/convertDocxToPdf.js'
+import { verifyUser } from './_lib/verifyUser.js'
 
 // api/affiliate.ts — merged from api/affiliate/{register,dashboard,book}.ts
 // (2026-08-21, same Vercel Hobby 12-function-cap consolidation as
 // api/shipping.ts / api/admin/shipping.ts before it — see those files' own
-// header comments for the original incident). Three previously-separate
+// header comments for the original incident). Previously-separate
 // GET/POST endpoints, now branched on an `action` query param (register is
-// the only POST so it doesn't strictly need one, but keeping all three
+// the only POST so it doesn't strictly need one, but keeping all four
 // symmetric avoids a "why does only this one work differently" surprise
-// later) — dashboard and book both need one since they share GET.
-// vercel.json's `functions` map key was updated from
-// "api/affiliate/book.ts" to "api/affiliate.ts" so book's maxDuration:60 +
-// includeFiles:"buku/**" still apply (now to the whole merged function,
-// which is harmless for the register/dashboard actions — see this commit's
-// own message for the size tradeoff). Client call sites updated in
+// later) — dashboard, book, and me (added same day, affiliate login) all
+// share GET so each needs one. vercel.json's `functions` map key was
+// updated from "api/affiliate/book.ts" to "api/affiliate.ts" so book's
+// maxDuration:60 + includeFiles:"buku/**" still apply (now to the whole
+// merged function, which is harmless for the other actions — see this
+// commit's own message for the size tradeoff). Client call sites updated in
 // src/lib/affiliate.ts to `/api/affiliate?action=...`.
 const USERNAME_PATTERN = /^[a-z0-9_-]{3,32}$/
 
@@ -194,6 +195,90 @@ async function handleDashboard(req: VercelRequest, res: VercelResponse) {
   })
 }
 
+// ─── me ────────────────────────────────────────────────────────────────
+// GET /api/affiliate?action=me — affiliate login (spec: /affiliate/log-masuk
+// screen). Requires a real Supabase Auth session (Authorization: Bearer
+// <access_token>, same as api/admin/*.ts's pattern) — reuses whatever
+// AffiliateLoginScreen.tsx signed the user in with (Google OAuth or email
+// magic-link, both already-existing app-wide mechanisms, see useAuth.ts),
+// this route doesn't care which. Returns the caller's OWN affiliate record
+// (id/username/name/status), auto-linking it on first call by matching
+// `affiliates.email` against the verified session's email —
+// supabase/migrations/0008_affiliate_auth.sql's whole reason to exist.
+// Never creates a new affiliate row — only an existing registration
+// (api/affiliate.ts's register action) can be linked; someone signing in
+// with an email that has no affiliate row gets a clear "daftar dahulu"
+// error instead of a silently-empty account.
+async function handleMe(req: VercelRequest, res: VercelResponse) {
+  const user = await verifyUser(req)
+  if (!user) {
+    res.status(401).json({ error: 'Log masuk diperlukan.' })
+    return
+  }
+
+  // Already linked from a previous login — the common case after the
+  // first one.
+  const { data: linked, error: linkedError } = await supabaseAdmin
+    .from('affiliates')
+    .select('id, username, name, status')
+    .eq('auth_user_id', user.id)
+    .maybeSingle()
+
+  if (linkedError) {
+    console.error('[api/affiliate action=me] linked lookup failed:', linkedError.message)
+    res.status(500).json({ error: 'Gagal semak akaun.' })
+    return
+  }
+  if (linked) {
+    res.status(200).json({ affiliate: linked })
+    return
+  }
+
+  // First login — try to link by email match against an UNLINKED
+  // affiliate row (affiliates.email is already lowercased at registration
+  // time, see handleRegister above).
+  const normalizedEmail = user.email.trim().toLowerCase()
+  const { data: candidate, error: candidateError } = await supabaseAdmin
+    .from('affiliates')
+    .select('id, username, name, status, auth_user_id')
+    .eq('email', normalizedEmail)
+    .maybeSingle()
+
+  if (candidateError) {
+    console.error('[api/affiliate action=me] candidate lookup failed:', candidateError.message)
+    res.status(500).json({ error: 'Gagal semak akaun.' })
+    return
+  }
+  if (!candidate) {
+    res.status(404).json({ error: 'Tiada akaun affiliate untuk e-mel ini. Sila daftar dahulu.' })
+    return
+  }
+  // Defensive — shouldn't happen in practice (the auth_user_id-based
+  // lookup above would already have caught it), but never silently
+  // reassign an affiliate row that's already claimed by a different auth
+  // identity (e.g. two different Supabase-Auth identities somehow sharing
+  // one email across providers).
+  if (candidate.auth_user_id && candidate.auth_user_id !== user.id) {
+    res.status(409).json({ error: 'E-mel ini sudah dikaitkan dengan akaun log masuk lain.' })
+    return
+  }
+
+  const { data: updated, error: updateError } = await supabaseAdmin
+    .from('affiliates')
+    .update({ auth_user_id: user.id })
+    .eq('id', candidate.id)
+    .select('id, username, name, status')
+    .single()
+
+  if (updateError) {
+    console.error('[api/affiliate action=me] link update failed:', updateError.message)
+    res.status(500).json({ error: 'Gagal kaitkan akaun.' })
+    return
+  }
+
+  res.status(200).json({ affiliate: updated })
+}
+
 // ─── book ──────────────────────────────────────────────────────────────
 // GET /api/affiliate?action=book&username=<affiliate username> — spec item
 // 4. Cache-first: checks affiliate_book_generations for a (username,
@@ -326,6 +411,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === 'POST' && action === 'register') return handleRegister(req, res)
   if (req.method === 'GET' && action === 'dashboard') return handleDashboard(req, res)
   if (req.method === 'GET' && action === 'book') return handleBook(req, res)
+  if (req.method === 'GET' && action === 'me') return handleMe(req, res)
 
   res.status(404).json({ error: 'Unknown action.' })
 }

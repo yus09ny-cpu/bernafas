@@ -62,3 +62,53 @@ export async function fetchAffiliateBookUrl(username: string): Promise<{ url: st
   if (!response.ok) return { url: null, error: data.error ?? 'Gagal jana buku.' }
   return { url: data.url ?? null, error: null }
 }
+
+export interface AffiliateSelf {
+  id: string
+  username: string
+  name: string
+  status: string
+}
+
+// AffiliateLoginScreen.tsx's post-sign-in step — resolves the just-signed-in
+// Supabase Auth session (Google OAuth or email magic-link, see useAuth.ts;
+// this call doesn't care which) to the caller's OWN affiliate record,
+// auto-linking it on first login (api/affiliate.ts's handleMe). Requires a
+// real access_token, unlike the other affiliate calls above.
+export async function fetchAffiliateMe(accessToken: string): Promise<{ data: AffiliateSelf | null; error: string | null }> {
+  const response = await fetch('/api/affiliate?action=me', {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) return { data: null, error: data.error ?? 'Gagal semak akaun.' }
+  return { data: data.affiliate as AffiliateSelf, error: null }
+}
+
+// useAuth's signInWithGoogle always redirects back to window.location.origin
+// (bare origin, no path — see useAuth.ts's own comment on why: the target
+// must be in Supabase Auth's redirect-URL allow-list, and only the bare
+// origin is confirmed to be in it). That means a Google sign-in started
+// from /affiliate/log-masuk lands back on `/` (main.tsx's PublicRoot ->
+// <App/>), not back on the login screen that needs to run the
+// resolve-affiliate step. sessionStorage (not localStorage — scoped to
+// this tab, so an abandoned/cancelled attempt doesn't leave a stale flag
+// that misroutes a LATER, unrelated visit to this site) carries the
+// "bounce back to here" instruction across that redirect. main.tsx reads
+// this before rendering anything.
+const OAUTH_REDIRECT_KEY = 'bernafas_affiliate_oauth_redirect'
+
+export function markAffiliateOAuthRedirect(path: string): void {
+  sessionStorage.setItem(OAUTH_REDIRECT_KEY, path)
+}
+
+// Preserves the current URL's search/hash (Supabase's OAuth callback
+// params — a PKCE `?code=` or implicit-flow `#access_token=...`) onto the
+// bounce-back target, so the Supabase client re-initialized on that page
+// still sees them and completes session detection there instead of on `/`
+// where nothing reads them.
+export function consumeAffiliateOAuthRedirect(currentPathname: string): string | null {
+  const target = sessionStorage.getItem(OAUTH_REDIRECT_KEY)
+  if (!target || target === currentPathname) return null
+  sessionStorage.removeItem(OAUTH_REDIRECT_KEY)
+  return target + window.location.search + window.location.hash
+}

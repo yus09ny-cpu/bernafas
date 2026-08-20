@@ -3,7 +3,9 @@ import { createRoot } from 'react-dom/client'
 import App from './App'
 import AffiliateRegisterScreen from '@/screens/affiliate/AffiliateRegisterScreen'
 import AffiliateDashboardScreen from '@/screens/affiliate/AffiliateDashboardScreen'
+import AffiliateLoginScreen from '@/screens/affiliate/AffiliateLoginScreen'
 import BeliLandingScreen from '@/screens/affiliate/BeliLandingScreen'
+import { consumeAffiliateOAuthRedirect } from '@/lib/affiliate'
 import AdminShippingScreen from '@/screens/admin/AdminShippingScreen'
 import AdminManagementScreen from '@/screens/admin/AdminManagementScreen'
 import PaymentSuccessScreen from '@/screens/PaymentSuccessScreen'
@@ -25,7 +27,20 @@ import './index.css'
 function PublicRoot() {
   const { pathname } = window.location
 
+  // Google OAuth started from /affiliate/log-masuk always redirects back
+  // to bare `/` (see src/lib/affiliate.ts's markAffiliateOAuthRedirect
+  // comment for why) — bounce back to the login screen, carrying the
+  // OAuth callback params (?code=/#access_token=...) along so the
+  // Supabase client re-initialized there still completes session
+  // detection instead of on this discarded `/` load.
+  const oauthBounce = consumeAffiliateOAuthRedirect(pathname)
+  if (oauthBounce) {
+    window.location.replace(oauthBounce)
+    return null
+  }
+
   if (pathname === '/affiliate/daftar') return <AffiliateRegisterScreen />
+  if (pathname === '/affiliate/log-masuk') return <AffiliateLoginScreen />
 
   const dashboardMatch = pathname.match(/^\/affiliate\/dashboard\/([^/]+)$/)
   if (dashboardMatch) return <AffiliateDashboardScreen affiliateId={dashboardMatch[1]} />
