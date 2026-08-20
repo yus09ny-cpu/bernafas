@@ -19,14 +19,24 @@ export const PRODUCT_PRICES: Record<ProductType, number> = {
   app_subscription: 19.9,
 }
 
+// `name` feeds ToyyibPay's billName, which has a 30-BYTE (not 30-character)
+// limit — discovered live, 2026-08-20: 'app_subscription's original name
+// ('Bernafas — Langganan Aplikasi', 29 JS chars) was rejected by the real
+// ToyyibPay API ("billName exceed limit. Max 30 length") the first time
+// TOYYIBPAY_SECRET_KEY/TOYYIBPAY_CATEGORY_CODE actually existed for this
+// project to test against. The em dash "—" is 1 UTF-16 code unit (what
+// .length counts) but 3 UTF-8 bytes — ToyyibPay's own length check is
+// byte-based (PHP strlen), so every name below avoids it (plain hyphen or
+// no separator) and stays comfortably under 30 bytes, confirmed via
+// Buffer.byteLength before shipping this fix, not just eyeballed.
 export const PRODUCT_LABELS: Record<ProductType, { name: string; description: string }> = {
-  buku: { name: 'Ini Jantungmu — Buku', description: 'Pembelian buku Ini Jantungmu' },
+  buku: { name: 'Buku Ini Jantungmu', description: 'Pembelian buku Ini Jantungmu' },
   pakej_lifetime: {
-    name: 'Ini Jantungmu — Pakej Lifetime',
+    name: 'Pakej Lifetime Bernafas',
     description: 'Pakej Buku + Sensor + Aplikasi (Lifetime)',
   },
-  sensor: { name: 'Bernafas — Sensor Sahaja', description: 'Sensor HRV bernafas.my (tanpa buku/aplikasi)' },
-  app_subscription: { name: 'Bernafas — Langganan Aplikasi', description: 'Akses aplikasi bernafas.my, 30 hari' },
+  sensor: { name: 'Sensor Bernafas', description: 'Sensor HRV bernafas.my (tanpa buku/aplikasi)' },
+  app_subscription: { name: 'Langganan Bernafas', description: 'Akses aplikasi bernafas.my, 30 hari' },
 }
 
 export function isProductType(value: unknown): value is ProductType {

@@ -104,7 +104,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     billExternalReferenceNo: order.id,
     billTo: billEmail,
     billEmail,
-    billPhone: '',
+    // ToyyibPay rejects an empty billPhone outright ("billPhone parameter
+    // is empty") — discovered live, 2026-08-20, the first time a real
+    // createBill call actually reached ToyyibPay for this project. No UI
+    // anywhere collects a phone number yet (BeliLandingScreen doesn't ask
+    // for one), so this is a placeholder — same "graceful default, not a
+    // real capture flow" reasoning as billTo/billEmail's own fallback
+    // above. A real phone-collection step is a separate, later piece of
+    // work if ToyyibPay's own dashboard ever needs to actually reach a
+    // buyer by phone.
+    billPhone: '0100000000',
   })
 
   try {
