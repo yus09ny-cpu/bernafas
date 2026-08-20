@@ -81,10 +81,12 @@ function ShipmentRow({ shipment, onUpdated }: { shipment: Shipment; onUpdated: (
 
 // /admin/penghantaran — admin-only order-fulfillment list, reached via
 // main.tsx's PublicRoot (outside App.tsx's auth+app-access gate
-// deliberately: the product owner must reach this regardless of their own
+// deliberately: an admin must reach this regardless of their own
 // subscription/order state, which App.tsx's gate has nothing to do with
 // anyway — this screen does its OWN auth check via useAuth, then its own
-// admin check via the api/admin/*.ts routes' isAdmin server-side guard).
+// role check via api/admin/shipping.ts's hasAdminRole(user, 'admin') guard
+// (any of the 3 tiers — admin/super/master — see
+// supabase/migrations/0007_admin_roles.sql).
 export default function AdminShippingScreen() {
   const { status } = useAuth()
   const [shipments, setShipments] = useState<Shipment[] | null>(null)

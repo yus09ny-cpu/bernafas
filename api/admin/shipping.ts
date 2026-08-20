@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { supabaseAdmin } from '../_lib/supabaseAdmin.js'
 import { verifyUser } from '../_lib/verifyUser.js'
-import { isAdmin } from '../_lib/isAdmin.js'
+import { hasAdminRole } from '../_lib/adminRole.js'
 
 // GET/POST /api/admin/shipping — merged from separate
 // api/admin/shipping-list.ts + api/admin/shipping-update.ts files
@@ -54,7 +54,9 @@ async function handleUpdate(req: VercelRequest, res: VercelResponse) {
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const user = await verifyUser(req)
-  if (!user || !isAdmin(user)) {
+  // /admin/penghantaran is reachable by any admin tier — 'admin' (shipping
+  // only), 'super', or 'master' — see supabase/migrations/0007_admin_roles.sql.
+  if (!(await hasAdminRole(user, 'admin'))) {
     res.status(403).json({ error: 'Tiada akses.' })
     return
   }

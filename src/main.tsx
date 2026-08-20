@@ -5,6 +5,7 @@ import AffiliateRegisterScreen from '@/screens/affiliate/AffiliateRegisterScreen
 import AffiliateDashboardScreen from '@/screens/affiliate/AffiliateDashboardScreen'
 import BeliLandingScreen from '@/screens/affiliate/BeliLandingScreen'
 import AdminShippingScreen from '@/screens/admin/AdminShippingScreen'
+import AdminManagementScreen from '@/screens/admin/AdminManagementScreen'
 import PaymentSuccessScreen from '@/screens/PaymentSuccessScreen'
 import './index.css'
 
@@ -33,6 +34,7 @@ function PublicRoot() {
   if (pathname === '/beli/selesai') return <PaymentSuccessScreen />
 
   if (pathname === '/admin/penghantaran') return <AdminShippingScreen />
+  if (pathname === '/admin/pengurusan-admin') return <AdminManagementScreen />
 
   return <App />
 }
