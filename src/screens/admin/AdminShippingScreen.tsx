@@ -31,7 +31,7 @@ function ShipmentRow({ shipment, onUpdated }: { shipment: Shipment; onUpdated: (
   const handleMarkShipped = async () => {
     if (saving) return
     setSaving(true)
-    await fetch('/api/admin/shipping-update', {
+    await fetch('/api/admin/shipping', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...(await authHeader()) },
       body: JSON.stringify({ shippingId: shipment.id, trackingNumber: tracking }),
@@ -93,7 +93,7 @@ export default function AdminShippingScreen() {
 
   const load = () => {
     authHeader().then(headers => {
-      fetch('/api/admin/shipping-list', { headers }).then(async response => {
+      fetch('/api/admin/shipping', { headers }).then(async response => {
         const data = await response.json().catch(() => ({}))
         if (response.status === 403) {
           setForbidden(true)

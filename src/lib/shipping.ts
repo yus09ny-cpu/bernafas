@@ -17,7 +17,7 @@ async function authHeader(): Promise<Record<string, string>> {
 }
 
 export async function fetchMyShippingOrders(): Promise<{ orders: MyShippingOrder[]; error: string | null }> {
-  const response = await fetch('/api/shipping/mine', { headers: await authHeader() })
+  const response = await fetch('/api/shipping', { headers: await authHeader() })
   const data = await response.json().catch(() => ({}))
   if (!response.ok) return { orders: [], error: data.error ?? 'Gagal muatkan pesanan.' }
   return { orders: data.orders ?? [], error: null }
@@ -33,7 +33,7 @@ export interface ShippingAddressInput {
 }
 
 export async function saveShippingAddress(input: ShippingAddressInput): Promise<{ success: boolean; error: string | null }> {
-  const response = await fetch('/api/shipping/save', {
+  const response = await fetch('/api/shipping', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...(await authHeader()) },
     body: JSON.stringify(input),
