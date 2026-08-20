@@ -3,7 +3,7 @@
     { "source": "/((?!api/|src/|@vite|@react-refresh|node_modules/)(?!.*\\.[^/]+$).*)", "destination": "/index.html" }
   ],
   "functions": {
-    "api/affiliate/book.ts": {
+    "api/affiliate.ts": {
       "maxDuration": 60,
       "includeFiles": "buku/**"
     },

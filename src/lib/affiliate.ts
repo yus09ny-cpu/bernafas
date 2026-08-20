@@ -23,7 +23,7 @@ export async function registerAffiliate(input: {
   username: string
   referredBy?: string
 }): Promise<AffiliateRegisterResult> {
-  const response = await fetch('/api/affiliate/register', {
+  const response = await fetch('/api/affiliate?action=register', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
@@ -37,7 +37,7 @@ export interface AffiliateDashboardData {
   affiliate: { username: string; name: string; status: string }
   clickCount: number
   // Counted straight from `orders` (affiliate_ref = username) — see
-  // api/affiliate/dashboard.ts's own comment on why (an order and its
+  // api/affiliate.ts's handleDashboard comment on why (an order and its
   // commission row(s) are created at different times).
   confirmedSales: number
   pendingSales: number
@@ -50,14 +50,14 @@ export interface AffiliateDashboardData {
 }
 
 export async function fetchAffiliateDashboard(id: string): Promise<{ data: AffiliateDashboardData | null; error: string | null }> {
-  const response = await fetch(`/api/affiliate/dashboard?id=${encodeURIComponent(id)}`)
+  const response = await fetch(`/api/affiliate?action=dashboard&id=${encodeURIComponent(id)}`)
   const data = await response.json().catch(() => ({}))
   if (!response.ok) return { data: null, error: data.error ?? 'Gagal muatkan dashboard.' }
   return { data: data as AffiliateDashboardData, error: null }
 }
 
 export async function fetchAffiliateBookUrl(username: string): Promise<{ url: string | null; error: string | null }> {
-  const response = await fetch(`/api/affiliate/book?username=${encodeURIComponent(username)}`)
+  const response = await fetch(`/api/affiliate?action=book&username=${encodeURIComponent(username)}`)
   const data = await response.json().catch(() => ({}))
   if (!response.ok) return { url: null, error: data.error ?? 'Gagal jana buku.' }
   return { url: data.url ?? null, error: null }
