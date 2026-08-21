@@ -24,11 +24,33 @@ export async function recordAffiliateClick(username: string): Promise<void> {
 // (several sit unlinked in production right now) and, via the existing
 // auto-link-by-email logic, read that affiliate's real dashboard/history
 // without ever proving they own the mailbox.
+//
+// emailRedirectTo (bug fix, 2026-08-21) — this call originally had NO
+// emailRedirectTo at all, so the confirmation link fell back to
+// Supabase's default Site URL (bare origin), landing a confirming
+// affiliate on the main app's ConnectScreen instead of anywhere
+// affiliate-related. Fixed by pointing it at /affiliate/log-masuk
+// directly, NOT the sessionStorage bounce-back trick
+// (markAffiliateOAuthRedirect) used for the Google OAuth redirect bug —
+// that trick doesn't fit here: a confirmation link is opened from an
+// email client, almost always in a FRESH tab/session that never ran the
+// registration code, so sessionStorage set at signup time wouldn't be
+// there to read. Confirmed empirically (generateLink + a real fetch
+// against the actual verify link, redirect:'manual') that Supabase's
+// redirect-URL allow-list already accepts this specific path — no
+// dashboard changes needed. AffiliateLoginScreen.tsx's existing
+// signed-in-on-mount handling (resolve to an affiliate via action=me,
+// then the dashboard) already does exactly the right thing once the
+// confirmation lands there, no new code needed on that end either.
 export async function signUpAffiliateAuth(
   email: string,
   password: string,
 ): Promise<{ status: 'confirmation_sent' | 'existing_account' | 'error'; error?: string }> {
-  const { data, error } = await supabase.auth.signUp({ email, password })
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: { emailRedirectTo: `${window.location.origin}/affiliate/log-masuk` },
+  })
   if (error) return { status: 'error', error: error.message }
 
   // Supabase's anti-enumeration behavior: signing up with an email that
