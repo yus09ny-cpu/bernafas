@@ -118,13 +118,14 @@ export async function fetchAffiliateMe(accessToken: string): Promise<{ data: Aff
 // (bare origin, no path — see useAuth.ts's own comment on why: the target
 // must be in Supabase Auth's redirect-URL allow-list, and only the bare
 // origin is confirmed to be in it). That means a Google sign-in started
-// from /affiliate/log-masuk lands back on `/` (main.tsx's PublicRoot ->
-// <App/>), not back on the login screen that needs to run the
-// resolve-affiliate step. sessionStorage (not localStorage — scoped to
-// this tab, so an abandoned/cancelled attempt doesn't leave a stale flag
-// that misroutes a LATER, unrelated visit to this site) carries the
-// "bounce back to here" instruction across that redirect. main.tsx reads
-// this before rendering anything.
+// from /affiliate/log-masuk OR /affiliate/daftar lands back on `/`
+// (main.tsx's PublicRoot -> <App/>), not back on the screen that needs to
+// run its own post-redirect step. sessionStorage (not localStorage —
+// scoped to this tab, so an abandoned/cancelled attempt doesn't leave a
+// stale flag that misroutes a LATER, unrelated visit to this site)
+// carries the "bounce back to here" instruction across that redirect.
+// main.tsx reads this before rendering anything. Used by both screens —
+// the path itself tells main.tsx where to send the browser back to.
 const OAUTH_REDIRECT_KEY = 'bernafas_affiliate_oauth_redirect'
 
 export function markAffiliateOAuthRedirect(path: string): void {
@@ -141,4 +142,36 @@ export function consumeAffiliateOAuthRedirect(currentPathname: string): string |
   if (!target || target === currentPathname) return null
   sessionStorage.removeItem(OAUTH_REDIRECT_KEY)
   return target + window.location.search + window.location.hash
+}
+
+// AffiliateRegisterScreen.tsx's "Daftar dengan Google" button — Google
+// only supplies name/email, not a chosen username, so the name+username
+// the user already typed into the form has to survive the SAME redirect
+// round-trip as the OAuth flag above. Read back only when
+// AffiliateRegisterScreen's own useEffect finds BOTH a 'signed-in' status
+// AND this payload present — deliberately NOT triggered by just being
+// signed in (unlike AffiliateLoginScreen, which always resolves on
+// sign-in) so visiting /affiliate/daftar with an unrelated existing
+// session never silently re-registers anything.
+const REGISTER_OAUTH_PAYLOAD_KEY = 'bernafas_affiliate_register_oauth_payload'
+
+interface RegisterOAuthPayload {
+  name: string
+  username: string
+  referredBy?: string
+}
+
+export function markAffiliateRegisterOAuthPayload(payload: RegisterOAuthPayload): void {
+  sessionStorage.setItem(REGISTER_OAUTH_PAYLOAD_KEY, JSON.stringify(payload))
+}
+
+export function consumeAffiliateRegisterOAuthPayload(): RegisterOAuthPayload | null {
+  const raw = sessionStorage.getItem(REGISTER_OAUTH_PAYLOAD_KEY)
+  if (!raw) return null
+  sessionStorage.removeItem(REGISTER_OAUTH_PAYLOAD_KEY)
+  try {
+    return JSON.parse(raw) as RegisterOAuthPayload
+  } catch {
+    return null
+  }
 }

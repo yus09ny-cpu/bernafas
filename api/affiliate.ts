@@ -20,7 +20,10 @@ import { verifyUser } from './_lib/verifyUser.js'
 // merged function, which is harmless for the other actions — see this
 // commit's own message for the size tradeoff). Client call sites updated in
 // src/lib/affiliate.ts to `/api/affiliate?action=...`.
-const USERNAME_PATTERN = /^[a-z0-9_-]{3,32}$/
+// Exported so api/_lib/affiliateAutoSignup.ts (auto-affiliate-on-purchase,
+// checkout/callback.ts) generates usernames matching the exact same rule
+// this endpoint enforces for manual registration — single source of truth.
+export const USERNAME_PATTERN = /^[a-z0-9_-]{3,32}$/
 
 // ─── register ──────────────────────────────────────────────────────────
 // POST /api/affiliate?action=register — { name, email, username, referredBy? }.

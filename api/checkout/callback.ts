@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { supabaseAdmin } from '../_lib/supabaseAdmin.js'
 import { recordCommissionsForPaidOrder } from '../_lib/commissions.js'
+import { autoCreateAffiliateForOrder } from '../_lib/affiliateAutoSignup.js'
 
 // ToyyibPay's server-to-server callback (billCallbackUrl in create-bill.ts)
 // — POSTs application/x-www-form-urlencoded, not JSON. status_id: 1 = paid,
@@ -17,6 +18,13 @@ import { recordCommissionsForPaidOrder } from '../_lib/commissions.js'
 // is checked live (a direct paid-order lookup) by app-access/status.ts
 // instead of being mirrored into profiles here; see that file's own
 // comment for why.
+//
+// ANY paid order (all 4 product types) also auto-creates an affiliate row
+// for the buyer's e-mail if one doesn't already exist (2026-08-21, spec
+// item 2 — see api/_lib/affiliateAutoSignup.ts). This is the one place in
+// this file where a failure must NEVER be allowed to affect the order-paid
+// outcome above (already committed) or this handler's response — see that
+// call site's own comment for the layered try/catch reasoning.
 const SUBSCRIPTION_PERIOD_DAYS = 30
 
 async function extendAppSubscription(orderId: string, userId: string | null): Promise<void> {
@@ -59,7 +67,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .from('orders')
       .update({ status: 'paid', paid_at: new Date().toISOString() })
       .eq('id', orderId)
-      .select('id, affiliate_ref, amount, created_at, product_type, user_id')
+      .select('id, affiliate_ref, amount, created_at, product_type, user_id, email')
       .single()
 
     if (error) {
@@ -68,6 +76,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       await recordCommissionsForPaidOrder(order)
       if (order.product_type === 'app_subscription') {
         await extendAppSubscription(order.id, order.user_id)
+      }
+      // Auto-affiliate-on-purchase (2026-08-21, spec item 2) — ANY paid
+      // order makes the buyer an affiliate, no registration step. Wrapped
+      // here on top of affiliateAutoSignup.ts's own internal try/catch
+      // (belt-and-suspenders, see that file's header) — this call must
+      // NEVER prevent res.status(200) below from being reached. The order
+      // itself is ALREADY committed 'paid' by the update above regardless
+      // of anything that happens from here on.
+      try {
+        await autoCreateAffiliateForOrder(order.id, order.email)
+      } catch (err) {
+        console.error(`[api/checkout/callback] auto-affiliate signup threw unexpectedly for order ${order.id}:`, err)
       }
     }
   } else if (statusId === '3') {
