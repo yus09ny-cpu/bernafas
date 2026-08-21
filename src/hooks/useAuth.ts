@@ -75,9 +75,46 @@ export function useAuth() {
     return true
   }, [])
 
+  // Real email+password sign-in — used by AffiliateLoginScreen.tsx only
+  // (the main app's AuthScreen.tsx stays magic-link + Google, unchanged
+  // per spec). Supabase deliberately returns the same generic message for
+  // "wrong password" and "no such account" (anti-enumeration) — preserved
+  // here rather than trying to distinguish them. "Email not confirmed" is
+  // the one distinct case Supabase does surface (account exists, password
+  // is right, but the confirmation link hasn't been clicked yet).
+  const signInWithPassword = useCallback(async (email: string, password: string) => {
+    setError(null)
+    const { error: signInError } = await supabase.auth.signInWithPassword({ email, password })
+    if (signInError) {
+      setError(
+        signInError.message.toLowerCase().includes('confirm')
+          ? 'Sila sahkan e-mel anda dahulu — semak peti masuk untuk pautan pengesahan.'
+          : 'E-mel atau kata laluan salah.',
+      )
+      return false
+    }
+    return true
+  }, [])
+
+  // AffiliateResetPasswordScreen.tsx is the redirectTo target — it detects
+  // the resulting PASSWORD_RECOVERY session itself (see that file) and
+  // calls supabase.auth.updateUser({ password }) directly, not through
+  // this hook.
+  const sendPasswordReset = useCallback(async (email: string) => {
+    setError(null)
+    const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/affiliate/reset-kata-laluan`,
+    })
+    if (resetError) {
+      setError(resetError.message)
+      return false
+    }
+    return true
+  }, [])
+
   const signOut = useCallback(async () => {
     await supabase.auth.signOut()
   }, [])
 
-  return { session, status, error, sendMagicLink, signInWithGoogle, signOut }
+  return { session, status, error, sendMagicLink, signInWithGoogle, signInWithPassword, sendPasswordReset, signOut }
 }

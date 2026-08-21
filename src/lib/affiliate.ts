@@ -10,6 +10,36 @@ export async function recordAffiliateClick(username: string): Promise<void> {
   if (error) console.error('[affiliate] click insert failed:', error.message)
 }
 
+// AffiliateRegisterScreen.tsx calls this AFTER registerAffiliate below
+// succeeds (never before — an auth account for a registration that then
+// fails username/email uniqueness would be orphaned crud, see this
+// function's caller for the exact ordering reasoning). Client-side
+// supabase.auth.signUp (anon key), NOT the admin API — sends a real
+// confirmation e-mail via Supabase's own mailer (same mechanism the app's
+// magic-link already relies on), no custom email-sending code needed.
+// Confirmation is REQUIRED before the password can be used to sign in
+// (project-wide "Confirm email" setting, confirmed still on for this
+// project) — deliberately not bypassed: an unconfirmed instant-access
+// account would let anyone claim an EXISTING unlinked affiliate's email
+// (several sit unlinked in production right now) and, via the existing
+// auto-link-by-email logic, read that affiliate's real dashboard/history
+// without ever proving they own the mailbox.
+export async function signUpAffiliateAuth(
+  email: string,
+  password: string,
+): Promise<{ status: 'confirmation_sent' | 'existing_account' | 'error'; error?: string }> {
+  const { data, error } = await supabase.auth.signUp({ email, password })
+  if (error) return { status: 'error', error: error.message }
+
+  // Supabase's anti-enumeration behavior: signing up with an email that
+  // already belongs to a CONFIRMED account returns no error, but an empty
+  // `identities` array and no session — that's the only signal available
+  // to tell "brand new account, confirmation email sent" apart from
+  // "this email already has a login somewhere, nothing sent".
+  const alreadyHasAccount = !data.session && (!data.user?.identities || data.user.identities.length === 0)
+  return { status: alreadyHasAccount ? 'existing_account' : 'confirmation_sent' }
+}
+
 export interface AffiliateRegisterResult {
   id?: string
   username?: string

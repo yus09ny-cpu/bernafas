@@ -4,6 +4,7 @@ import App from './App'
 import AffiliateRegisterScreen from '@/screens/affiliate/AffiliateRegisterScreen'
 import AffiliateDashboardScreen from '@/screens/affiliate/AffiliateDashboardScreen'
 import AffiliateLoginScreen from '@/screens/affiliate/AffiliateLoginScreen'
+import AffiliateResetPasswordScreen from '@/screens/affiliate/AffiliateResetPasswordScreen'
 import BeliLandingScreen from '@/screens/affiliate/BeliLandingScreen'
 import { consumeAffiliateOAuthRedirect } from '@/lib/affiliate'
 import AdminShippingScreen from '@/screens/admin/AdminShippingScreen'
@@ -41,6 +42,7 @@ function PublicRoot() {
 
   if (pathname === '/affiliate/daftar') return <AffiliateRegisterScreen />
   if (pathname === '/affiliate/log-masuk') return <AffiliateLoginScreen />
+  if (pathname === '/affiliate/reset-kata-laluan') return <AffiliateResetPasswordScreen />
 
   const dashboardMatch = pathname.match(/^\/affiliate\/dashboard\/([^/]+)$/)
   if (dashboardMatch) return <AffiliateDashboardScreen affiliateId={dashboardMatch[1]} />
