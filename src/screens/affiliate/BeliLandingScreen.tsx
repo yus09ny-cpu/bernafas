@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Loader2, Upload, CheckCircle2 } from 'lucide-react'
+import { Loader2, Upload, CheckCircle2, ExternalLink } from 'lucide-react'
 import { recordAffiliateClick } from '@/lib/affiliate'
 import { setAffiliateRefCookie, getAffiliateRefCookie } from '@/lib/affiliateCookie'
 import { submitManualPaymentProof } from '@/lib/manualPayment'
@@ -21,14 +21,21 @@ const PRODUCTS = [
 ]
 
 // 2026-08-21 — "Wise (Antarabangsa)" manual payment path for buyers
-// outside Malaysia (ToyyibPay only processes MYR). PLACEHOLDER account
-// details — product owner will supply the real Wise account info; do not
-// treat these as real payment details.
-const WISE_ACCOUNT = {
-  name: '[Nama Akaun Wise — placeholder]',
-  email: '[wise@contoh.com — placeholder]',
-  accountDetail: '[Nombor akaun/IBAN Wise — placeholder]',
-}
+// outside Malaysia (ToyyibPay only processes MYR).
+//
+// Real Wise payment link + QR (added 2026-08-21, same day) — BOTH are
+// tied to a single fixed Wise payment REQUEST the product owner created
+// (confirmed by inspecting the QR image: it encodes "Amount: 9 SGD, Note:
+// Ebook.. Ini Jantungmu"), not a generic "pay any amount" account. That
+// only actually matches the 'buku' product — showing it for
+// sensor/pakej_lifetime would display the wrong amount/note to a buyer
+// paying for something else. Per explicit product-owner decision, the
+// QR/link are gated to 'buku' only (see WISE_SUPPORTED_PRODUCT below);
+// other products show a "not yet available via Wise" notice instead of a
+// mismatched QR.
+const WISE_LINK = 'https://wise.com/pay/r/j_NBrhu0i_oe7o4'
+const WISE_QR_IMAGE = '/assets/wise-qr.png'
+const WISE_SUPPORTED_PRODUCT = 'buku' as const
 
 type PaymentMethod = 'toyyibpay' | 'wise'
 type ProductType = (typeof PRODUCTS)[number]['type']
@@ -217,18 +224,42 @@ export default function BeliLandingScreen() {
         </div>
       )}
 
-      {paymentMethod === 'wise' && wiseProduct && !wiseDone && (
+      {paymentMethod === 'wise' && wiseProduct && !wiseDone && wiseProduct !== WISE_SUPPORTED_PRODUCT && (
+        <div className="flex w-full max-w-xs flex-col items-center gap-3 rounded-2xl bg-white/70 p-5 text-center">
+          <p className="text-sm font-semibold text-[var(--color-text)]">Wise belum tersedia untuk {wiseProductInfo?.label}</p>
+          <p className="text-xs text-[var(--color-text-muted)]">
+            Buat masa ini Wise hanya tersedia untuk Buku "Ini Jantungmu". Sila guna ToyyibPay, atau pilih Buku di atas.
+          </p>
+          <button
+            type="button"
+            onClick={() => setWiseProduct(null)}
+            className="text-xs text-[var(--color-text-muted)] underline-offset-4 hover:underline"
+          >
+            Pilih produk lain
+          </button>
+        </div>
+      )}
+
+      {paymentMethod === 'wise' && wiseProduct === WISE_SUPPORTED_PRODUCT && !wiseDone && (
         <div className="flex w-full max-w-xs flex-col gap-4">
-          <div className="flex flex-col gap-2 rounded-2xl bg-white/70 p-4 text-left">
+          <div className="flex flex-col gap-3 rounded-2xl bg-white/70 p-4 text-left">
             <span className="text-sm font-semibold text-[var(--color-text)]">
               {wiseProductInfo?.label} — RM{wiseProductInfo?.amount}
             </span>
-            <span className="text-xs text-[var(--color-text-muted)]">Buat pembayaran ke akaun Wise berikut:</span>
-            <div className="rounded-xl bg-white/80 p-3 text-xs text-[var(--color-text)]">
-              <p>Nama: {WISE_ACCOUNT.name}</p>
-              <p>E-mel Wise: {WISE_ACCOUNT.email}</p>
-              <p>Butiran Akaun: {WISE_ACCOUNT.accountDetail}</p>
-            </div>
+            <span className="text-xs text-[var(--color-text-muted)]">Imbas kod QR ini dengan app Wise anda:</span>
+            <img
+              src={WISE_QR_IMAGE}
+              alt="Kod QR pembayaran Wise"
+              className="mx-auto h-48 w-48 rounded-xl border border-[var(--color-card-border)] bg-white object-contain"
+            />
+            <a
+              href={WISE_LINK}
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center justify-center gap-2 rounded-full bg-[var(--color-primary)] px-5 py-3 text-sm font-semibold text-white transition-transform active:scale-[0.98]"
+            >
+              Bayar melalui Wise <ExternalLink size={14} />
+            </a>
             <span className="text-xs text-[var(--color-text-muted)]">
               Sertakan rujukan ini dalam nota pemindahan Wise anda supaya mudah disepadankan:
             </span>
