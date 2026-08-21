@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
-import { Loader2 } from 'lucide-react'
+import { Loader2, Upload, CheckCircle2 } from 'lucide-react'
 import { recordAffiliateClick } from '@/lib/affiliate'
 import { setAffiliateRefCookie, getAffiliateRefCookie } from '@/lib/affiliateCookie'
+import { submitManualPaymentProof } from '@/lib/manualPayment'
 import { supabase } from '@/lib/supabase'
 
 // /beli?ref=USERNAME — spec item 6. Sets the 30-day attribution cookie and
@@ -19,10 +20,45 @@ const PRODUCTS = [
   { type: 'pakej_lifetime' as const, label: 'Pakej Buku + Sensor + Aplikasi (Lifetime)', amount: 499 },
 ]
 
+// 2026-08-21 — "Wise (Antarabangsa)" manual payment path for buyers
+// outside Malaysia (ToyyibPay only processes MYR). PLACEHOLDER account
+// details — product owner will supply the real Wise account info; do not
+// treat these as real payment details.
+const WISE_ACCOUNT = {
+  name: '[Nama Akaun Wise — placeholder]',
+  email: '[wise@contoh.com — placeholder]',
+  accountDetail: '[Nombor akaun/IBAN Wise — placeholder]',
+}
+
+type PaymentMethod = 'toyyibpay' | 'wise'
+type ProductType = (typeof PRODUCTS)[number]['type']
+
+// Purely a display aid for the buyer to include in their Wise transfer
+// note, so the admin can eyeball-match an incoming Wise transfer to a
+// submission later — NOT persisted anywhere (manual_payment_proofs' given
+// schema has no reference column; submitted_email + amount + the
+// screenshot itself are what's actually stored and reviewed). Generated
+// client-side, never sent to the server.
+function generateWiseReference(productType: string): string {
+  const code = productType.slice(0, 4).toUpperCase()
+  const random = Math.random().toString(36).slice(2, 8).toUpperCase()
+  return `BERNAFAS-${code}-${random}`
+}
+
 export default function BeliLandingScreen() {
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('toyyibpay')
   const [submittingType, setSubmittingType] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [warning, setWarning] = useState<string | null>(null)
+
+  // Wise flow state — only relevant while paymentMethod === 'wise'.
+  const [wiseProduct, setWiseProduct] = useState<ProductType | null>(null)
+  const [wiseReference, setWiseReference] = useState<string | null>(null)
+  const [wiseEmail, setWiseEmail] = useState('')
+  const [wiseFile, setWiseFile] = useState<File | null>(null)
+  const [wiseSubmitting, setWiseSubmitting] = useState(false)
+  const [wiseError, setWiseError] = useState<string | null>(null)
+  const [wiseDone, setWiseDone] = useState(false)
 
   useEffect(() => {
     const ref = new URLSearchParams(window.location.search).get('ref')
@@ -68,6 +104,31 @@ export default function BeliLandingScreen() {
     }
   }
 
+  const handleSelectWiseProduct = (productType: ProductType) => {
+    setWiseProduct(productType)
+    setWiseReference(generateWiseReference(productType))
+    setWiseError(null)
+  }
+
+  const handleWiseSubmit = async () => {
+    if (wiseSubmitting || !wiseProduct || !wiseEmail.trim() || !wiseFile) return
+    setWiseSubmitting(true)
+    setWiseError(null)
+    const { error: submitError } = await submitManualPaymentProof({
+      productType: wiseProduct,
+      email: wiseEmail.trim(),
+      file: wiseFile,
+    })
+    setWiseSubmitting(false)
+    if (submitError) {
+      setWiseError(submitError)
+      return
+    }
+    setWiseDone(true)
+  }
+
+  const wiseProductInfo = wiseProduct ? PRODUCTS.find(p => p.type === wiseProduct) : null
+
   return (
     <div
       className="flex h-full w-full flex-col items-center gap-8 overflow-y-auto px-6 py-10 text-center"
@@ -78,25 +139,149 @@ export default function BeliLandingScreen() {
         <span className="max-w-xs text-sm text-[var(--color-text-muted)]">"Ini Jantungmu — Dengarkan Dia Bercakap"</span>
       </div>
 
+      {/* Method selector — "di sebelah ToyyibPay" per spec, not a separate
+          page/route. Switching method resets any in-progress Wise
+          sub-flow so a half-filled Wise form never lingers if the buyer
+          bounces back to ToyyibPay. */}
+      <div className="flex w-full max-w-xs gap-2 rounded-full bg-white/50 p-1">
+        <button
+          type="button"
+          onClick={() => {
+            setPaymentMethod('toyyibpay')
+            setWiseProduct(null)
+            setWiseDone(false)
+          }}
+          className={`flex-1 rounded-full px-3 py-2 text-xs font-semibold transition-colors ${
+            paymentMethod === 'toyyibpay' ? 'bg-[var(--color-primary)] text-white' : 'text-[var(--color-text-muted)]'
+          }`}
+        >
+          ToyyibPay (Malaysia)
+        </button>
+        <button
+          type="button"
+          onClick={() => setPaymentMethod('wise')}
+          className={`flex-1 rounded-full px-3 py-2 text-xs font-semibold transition-colors ${
+            paymentMethod === 'wise' ? 'bg-[var(--color-primary)] text-white' : 'text-[var(--color-text-muted)]'
+          }`}
+        >
+          Wise (Antarabangsa)
+        </button>
+      </div>
+
       {error && <p className="max-w-xs text-sm text-[var(--color-warm)]">{error}</p>}
       {warning && <p className="max-w-xs text-sm text-[var(--color-text-muted)]">{warning}</p>}
 
-      <div className="flex w-full max-w-xs flex-col gap-3">
-        {PRODUCTS.map(product => (
-          <button
-            key={product.type}
-            type="button"
-            onClick={() => handleBuy(product.type)}
-            disabled={submittingType !== null}
-            className="flex items-center justify-between gap-3 rounded-2xl bg-white/70 px-5 py-4 text-left transition-transform active:scale-[0.98] disabled:opacity-50"
-          >
-            <span className="text-sm font-semibold text-[var(--color-text)]">{product.label}</span>
-            <span className="flex shrink-0 items-center gap-2 text-base font-bold text-[var(--color-primary)]">
-              {submittingType === product.type ? <Loader2 size={16} className="animate-spin" /> : `RM${product.amount}`}
+      {paymentMethod === 'toyyibpay' && (
+        <div className="flex w-full max-w-xs flex-col gap-3">
+          {PRODUCTS.map(product => (
+            <button
+              key={product.type}
+              type="button"
+              onClick={() => handleBuy(product.type)}
+              disabled={submittingType !== null}
+              className="flex items-center justify-between gap-3 rounded-2xl bg-white/70 px-5 py-4 text-left transition-transform active:scale-[0.98] disabled:opacity-50"
+            >
+              <span className="text-sm font-semibold text-[var(--color-text)]">{product.label}</span>
+              <span className="flex shrink-0 items-center gap-2 text-base font-bold text-[var(--color-primary)]">
+                {submittingType === product.type ? <Loader2 size={16} className="animate-spin" /> : `RM${product.amount}`}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {paymentMethod === 'wise' && !wiseProduct && (
+        <div className="flex w-full max-w-xs flex-col gap-3">
+          <p className="text-xs text-[var(--color-text-muted)]">Untuk pembeli di luar Malaysia. Pilih produk untuk teruskan.</p>
+          {PRODUCTS.map(product => (
+            <button
+              key={product.type}
+              type="button"
+              onClick={() => handleSelectWiseProduct(product.type)}
+              className="flex items-center justify-between gap-3 rounded-2xl bg-white/70 px-5 py-4 text-left transition-transform active:scale-[0.98]"
+            >
+              <span className="text-sm font-semibold text-[var(--color-text)]">{product.label}</span>
+              <span className="text-base font-bold text-[var(--color-primary)]">RM{product.amount}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {paymentMethod === 'wise' && wiseProduct && wiseDone && (
+        <div className="flex w-full max-w-xs flex-col items-center gap-3 rounded-2xl bg-white/70 p-5 text-center">
+          <CheckCircle2 size={40} className="text-[var(--color-primary)]" />
+          <p className="text-sm font-semibold text-[var(--color-text)]">Bukti bayaran diterima</p>
+          <p className="text-xs text-[var(--color-text-muted)]">
+            Akan disahkan dalam masa 24-48 jam. Kami akan hubungi anda di {wiseEmail}.
+          </p>
+        </div>
+      )}
+
+      {paymentMethod === 'wise' && wiseProduct && !wiseDone && (
+        <div className="flex w-full max-w-xs flex-col gap-4">
+          <div className="flex flex-col gap-2 rounded-2xl bg-white/70 p-4 text-left">
+            <span className="text-sm font-semibold text-[var(--color-text)]">
+              {wiseProductInfo?.label} — RM{wiseProductInfo?.amount}
             </span>
-          </button>
-        ))}
-      </div>
+            <span className="text-xs text-[var(--color-text-muted)]">Buat pembayaran ke akaun Wise berikut:</span>
+            <div className="rounded-xl bg-white/80 p-3 text-xs text-[var(--color-text)]">
+              <p>Nama: {WISE_ACCOUNT.name}</p>
+              <p>E-mel Wise: {WISE_ACCOUNT.email}</p>
+              <p>Butiran Akaun: {WISE_ACCOUNT.accountDetail}</p>
+            </div>
+            <span className="text-xs text-[var(--color-text-muted)]">
+              Sertakan rujukan ini dalam nota pemindahan Wise anda supaya mudah disepadankan:
+            </span>
+            <div className="break-all rounded-xl bg-white/80 p-3 text-xs font-semibold text-[var(--color-primary-dark)]">
+              {wiseReference}
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-3">
+            {wiseError && <p className="text-sm text-[var(--color-warm)]">{wiseError}</p>}
+            <input
+              type="email"
+              inputMode="email"
+              autoComplete="email"
+              required
+              value={wiseEmail}
+              onChange={e => setWiseEmail(e.target.value)}
+              placeholder="E-mel anda"
+              className="w-full rounded-full border border-[var(--color-card-border)] bg-white/80 px-5 py-4 text-center text-base text-[var(--color-text)] outline-none focus:border-[var(--color-primary)]"
+            />
+            <label className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-full border border-dashed border-[var(--color-card-border)] bg-white/80 px-5 py-4 text-sm text-[var(--color-text-muted)]">
+              <Upload size={16} />
+              {wiseFile ? wiseFile.name : 'Muat naik screenshot bukti bayaran'}
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                className="hidden"
+                onChange={e => setWiseFile(e.target.files?.[0] ?? null)}
+              />
+            </label>
+            <button
+              type="button"
+              onClick={handleWiseSubmit}
+              disabled={wiseSubmitting || !wiseEmail.trim() || !wiseFile}
+              className="flex items-center justify-center gap-2 rounded-full bg-[var(--color-primary)] px-6 py-4 text-base font-semibold text-white transition-transform active:scale-95 disabled:opacity-40"
+            >
+              {wiseSubmitting ? 'Menghantar...' : 'Hantar Bukti Bayaran'}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setWiseProduct(null)
+                setWiseFile(null)
+                setWiseEmail('')
+                setWiseError(null)
+              }}
+              className="text-xs text-[var(--color-text-muted)] underline-offset-4 hover:underline"
+            >
+              Pilih produk lain
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

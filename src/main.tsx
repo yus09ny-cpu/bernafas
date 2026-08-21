@@ -9,6 +9,7 @@ import BeliLandingScreen from '@/screens/affiliate/BeliLandingScreen'
 import { consumeAffiliateOAuthRedirect } from '@/lib/affiliate'
 import AdminShippingScreen from '@/screens/admin/AdminShippingScreen'
 import AdminManagementScreen from '@/screens/admin/AdminManagementScreen'
+import AdminManualPaymentScreen from '@/screens/admin/AdminManualPaymentScreen'
 import PaymentSuccessScreen from '@/screens/PaymentSuccessScreen'
 import './index.css'
 
@@ -52,6 +53,7 @@ function PublicRoot() {
 
   if (pathname === '/admin/penghantaran') return <AdminShippingScreen />
   if (pathname === '/admin/pengurusan-admin') return <AdminManagementScreen />
+  if (pathname === '/admin/bayaran-manual') return <AdminManualPaymentScreen />
 
   return <App />
 }
