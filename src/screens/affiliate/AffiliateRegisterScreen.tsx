@@ -47,8 +47,20 @@ const referredBy = new URLSearchParams(window.location.search).get('ref') ?? und
 
 type AuthOutcome = 'confirmation_sent' | 'existing_account' | 'auth_failed' | 'link_failed'
 
+// 2026-08-21, second UX pass: the single long form (name/email/username/
+// Google button/password/confirm all stacked together) read as
+// confusing/cluttered per direct user feedback — restructured into an
+// explicit method CHOICE step first (two big buttons, no input fields
+// visible yet), THEN only the fields that method actually needs.
+// authMethod===null is the choice screen; 'google'/'password' each show
+// their own field subset. Underlying logic (registerAffiliate, Google
+// OAuth, auto-link) is completely unchanged — this only reorganizes what
+// renders when.
+type AuthMethod = 'google' | 'password' | null
+
 export default function AffiliateRegisterScreen() {
   const { status: authStatus, signInWithGoogle } = useAuth()
+  const [authMethod, setAuthMethod] = useState<AuthMethod>(null)
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [username, setUsername] = useState('')
@@ -120,6 +132,19 @@ export default function AffiliateRegisterScreen() {
     markAffiliateOAuthRedirect('/affiliate/daftar')
     const ok = await signInWithGoogle()
     if (!ok) setGoogleSubmitting(false)
+  }
+
+  // "Guna cara lain" — returns to the choice screen. name/username are
+  // shared between both methods and deliberately kept (no reason to force
+  // re-typing them just for switching), but email/password/confirmPassword
+  // only exist for the password method — cleared here so nothing stale
+  // lingers if the user picks password again later.
+  const handleBackToChoice = () => {
+    setAuthMethod(null)
+    setError(null)
+    setEmail('')
+    setPassword('')
+    setConfirmPassword('')
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -256,107 +281,150 @@ export default function AffiliateRegisterScreen() {
           {error && <p className="max-w-xs text-sm text-[var(--color-warm)]">{error}</p>}
         </div>
 
-        <form onSubmit={handleSubmit} className="flex w-full flex-col gap-3">
-          <input
-            type="text"
-            required
-            value={name}
-            onChange={e => setName(e.target.value)}
-            placeholder="Nama penuh"
-            className="w-full rounded-full border border-[var(--color-card-border)] bg-white/80 px-5 py-4 text-center text-base text-[var(--color-text)] outline-none focus:border-[var(--color-primary)]"
-          />
-          <input
-            type="email"
-            inputMode="email"
-            autoComplete="email"
-            required
-            value={email}
-            onChange={e => setEmail(e.target.value)}
-            placeholder="nama@contoh.com"
-            className="w-full rounded-full border border-[var(--color-card-border)] bg-white/80 px-5 py-4 text-center text-base text-[var(--color-text)] outline-none focus:border-[var(--color-primary)]"
-          />
-          <input
-            type="text"
-            required
-            value={username}
-            onChange={e => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ''))}
-            placeholder="username-anda"
-            className="w-full rounded-full border border-[var(--color-card-border)] bg-white/80 px-5 py-4 text-center text-base text-[var(--color-text)] outline-none focus:border-[var(--color-primary)]"
-          />
-          <p className="text-xs text-[var(--color-text-muted)]">
-            Pautan anda: bernafas.my/beli?ref={username || 'username-anda'}
-          </p>
-
-          {/* 2026-08-21 UX pass: moved above the password fields (was
-              below the whole form) so the Google option is seen BEFORE a
-              user starts typing a password, not buried after it — real
-              user feedback: the disabled state alone read as "broken",
-              not "waiting for input", when it only appeared at the very
-              bottom. Still inside the <form> — type="button" never
-              triggers submission, so this doesn't change how Enter/the
-              real submit button behaves. */}
-          <div className="flex items-center gap-3">
-            <div className="h-px flex-1 bg-[var(--color-card-border)] opacity-30" />
-            <span className="text-xs text-[var(--color-text-muted)]">atau</span>
-            <div className="h-px flex-1 bg-[var(--color-card-border)] opacity-30" />
+        {/* Step 1: choose a method — no input fields visible yet. */}
+        {authMethod === null && (
+          <div className="flex w-full flex-col gap-3">
+            <button
+              type="button"
+              onClick={() => setAuthMethod('google')}
+              className="flex items-center justify-center gap-3 rounded-full border border-[var(--color-card-border)] bg-white/80 px-6 py-4 text-base font-medium text-[var(--color-text)] transition-transform active:scale-95"
+            >
+              <svg className="h-5 w-5 shrink-0" viewBox="0 0 24 24" aria-hidden="true">
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+              </svg>
+              Daftar dengan Google
+            </button>
+            <button
+              type="button"
+              onClick={() => setAuthMethod('password')}
+              className="flex items-center justify-center gap-2 rounded-full bg-[var(--color-primary)] px-6 py-4 text-base font-semibold text-white transition-transform active:scale-95"
+            >
+              Daftar dengan Emel & Kata Laluan <ArrowRight size={18} />
+            </button>
           </div>
+        )}
 
-          <button
-            type="button"
-            onClick={handleGoogleSignup}
-            disabled={googleSubmitting || !name.trim() || !username.trim()}
-            className="flex items-center justify-center gap-3 rounded-full border border-[var(--color-card-border)] bg-white/80 px-6 py-4 text-base font-medium text-[var(--color-text)] transition-transform active:scale-95 disabled:opacity-40"
-          >
-            <svg className="h-5 w-5 shrink-0" viewBox="0 0 24 24" aria-hidden="true">
-              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
-              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
-            </svg>
-            {googleSubmitting ? 'Menyambung...' : 'Daftar dengan Google'}
-          </button>
-          {/* Explicitly frames the disabled state as "waiting for input",
-              never left to read as broken — same wording pattern as the
-              form's other inline hints (e.g. the referral-link preview
-              above). */}
-          <p className="text-[11px] text-[var(--color-text-muted)]">
-            {!name.trim() || !username.trim()
-              ? 'Isi nama dan username dahulu untuk aktifkan pendaftaran pantas dengan Google.'
-              : 'Pendaftaran pantas dengan Google diaktifkan — atau teruskan isi kata laluan di bawah.'}
-          </p>
+        {/* Step 2a: Google method — only name + username. */}
+        {authMethod === 'google' && (
+          <div className="flex w-full flex-col gap-3">
+            <input
+              type="text"
+              required
+              value={name}
+              onChange={e => setName(e.target.value)}
+              placeholder="Nama penuh"
+              className="w-full rounded-full border border-[var(--color-card-border)] bg-white/80 px-5 py-4 text-center text-base text-[var(--color-text)] outline-none focus:border-[var(--color-primary)]"
+            />
+            <input
+              type="text"
+              required
+              value={username}
+              onChange={e => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ''))}
+              placeholder="username-anda"
+              className="w-full rounded-full border border-[var(--color-card-border)] bg-white/80 px-5 py-4 text-center text-base text-[var(--color-text)] outline-none focus:border-[var(--color-primary)]"
+            />
+            <p className="text-xs text-[var(--color-text-muted)]">
+              Pautan anda: bernafas.my/beli?ref={username || 'username-anda'}
+            </p>
 
-          <div className="flex items-center gap-3">
-            <div className="h-px flex-1 bg-[var(--color-card-border)] opacity-30" />
-            <span className="text-xs text-[var(--color-text-muted)]">atau teruskan dengan kata laluan</span>
-            <div className="h-px flex-1 bg-[var(--color-card-border)] opacity-30" />
+            <button
+              type="button"
+              onClick={handleGoogleSignup}
+              disabled={googleSubmitting || !name.trim() || !username.trim()}
+              className="mt-2 flex items-center justify-center gap-3 rounded-full border border-[var(--color-card-border)] bg-white/80 px-6 py-4 text-base font-medium text-[var(--color-text)] transition-transform active:scale-95 disabled:opacity-40"
+            >
+              <svg className="h-5 w-5 shrink-0" viewBox="0 0 24 24" aria-hidden="true">
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+              </svg>
+              {googleSubmitting ? 'Menyambung...' : 'Teruskan dengan Google'}
+            </button>
+            {(!name.trim() || !username.trim()) && (
+              <p className="text-[11px] text-[var(--color-text-muted)]">Isi nama dan username untuk teruskan.</p>
+            )}
+
+            <button
+              type="button"
+              onClick={handleBackToChoice}
+              className="text-xs text-[var(--color-text-muted)] underline-offset-4 hover:underline"
+            >
+              Guna cara lain
+            </button>
           </div>
+        )}
 
-          <input
-            type="password"
-            autoComplete="new-password"
-            required
-            value={password}
-            onChange={e => setPassword(e.target.value)}
-            placeholder="Kata laluan (min. 8 aksara)"
-            className="w-full rounded-full border border-[var(--color-card-border)] bg-white/80 px-5 py-4 text-center text-base text-[var(--color-text)] outline-none focus:border-[var(--color-primary)]"
-          />
-          <input
-            type="password"
-            autoComplete="new-password"
-            required
-            value={confirmPassword}
-            onChange={e => setConfirmPassword(e.target.value)}
-            placeholder="Sahkan kata laluan"
-            className="w-full rounded-full border border-[var(--color-card-border)] bg-white/80 px-5 py-4 text-center text-base text-[var(--color-text)] outline-none focus:border-[var(--color-primary)]"
-          />
-          <button
-            type="submit"
-            disabled={submitting || !name.trim() || !email.trim() || !username.trim() || !password.trim()}
-            className="mt-2 flex items-center justify-center gap-2 rounded-full bg-[var(--color-primary)] px-6 py-4 text-base font-semibold text-white transition-transform active:scale-95 disabled:opacity-40"
-          >
-            {submitting ? 'Mendaftar...' : 'Daftar'} <ArrowRight size={18} />
-          </button>
-        </form>
+        {/* Step 2b: e-mail + password method — full field set. */}
+        {authMethod === 'password' && (
+          <form onSubmit={handleSubmit} className="flex w-full flex-col gap-3">
+            <input
+              type="text"
+              required
+              value={name}
+              onChange={e => setName(e.target.value)}
+              placeholder="Nama penuh"
+              className="w-full rounded-full border border-[var(--color-card-border)] bg-white/80 px-5 py-4 text-center text-base text-[var(--color-text)] outline-none focus:border-[var(--color-primary)]"
+            />
+            <input
+              type="email"
+              inputMode="email"
+              autoComplete="email"
+              required
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              placeholder="nama@contoh.com"
+              className="w-full rounded-full border border-[var(--color-card-border)] bg-white/80 px-5 py-4 text-center text-base text-[var(--color-text)] outline-none focus:border-[var(--color-primary)]"
+            />
+            <input
+              type="text"
+              required
+              value={username}
+              onChange={e => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ''))}
+              placeholder="username-anda"
+              className="w-full rounded-full border border-[var(--color-card-border)] bg-white/80 px-5 py-4 text-center text-base text-[var(--color-text)] outline-none focus:border-[var(--color-primary)]"
+            />
+            <p className="text-xs text-[var(--color-text-muted)]">
+              Pautan anda: bernafas.my/beli?ref={username || 'username-anda'}
+            </p>
+            <input
+              type="password"
+              autoComplete="new-password"
+              required
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              placeholder="Kata laluan (min. 8 aksara)"
+              className="w-full rounded-full border border-[var(--color-card-border)] bg-white/80 px-5 py-4 text-center text-base text-[var(--color-text)] outline-none focus:border-[var(--color-primary)]"
+            />
+            <input
+              type="password"
+              autoComplete="new-password"
+              required
+              value={confirmPassword}
+              onChange={e => setConfirmPassword(e.target.value)}
+              placeholder="Sahkan kata laluan"
+              className="w-full rounded-full border border-[var(--color-card-border)] bg-white/80 px-5 py-4 text-center text-base text-[var(--color-text)] outline-none focus:border-[var(--color-primary)]"
+            />
+            <button
+              type="submit"
+              disabled={submitting || !name.trim() || !email.trim() || !username.trim() || !password.trim()}
+              className="mt-2 flex items-center justify-center gap-2 rounded-full bg-[var(--color-primary)] px-6 py-4 text-base font-semibold text-white transition-transform active:scale-95 disabled:opacity-40"
+            >
+              {submitting ? 'Mendaftar...' : 'Daftar'} <ArrowRight size={18} />
+            </button>
+
+            <button
+              type="button"
+              onClick={handleBackToChoice}
+              className="text-xs text-[var(--color-text-muted)] underline-offset-4 hover:underline"
+            >
+              Guna cara lain
+            </button>
+          </form>
+        )}
       </div>
 
       <a href="/affiliate/log-masuk" className="text-xs text-[var(--color-text-muted)] underline-offset-4 hover:underline">
