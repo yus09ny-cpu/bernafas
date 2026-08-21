@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 
-export type AppAccessReason = 'subscription' | 'lifetime' | null
+export type AppAccessReason = 'subscription' | 'lifetime' | 'admin' | null
 
 export interface AppAccessState {
   status: 'loading' | 'granted' | 'blocked'

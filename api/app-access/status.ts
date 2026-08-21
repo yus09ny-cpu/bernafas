@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { supabaseAdmin } from '../_lib/supabaseAdmin.js'
 import { verifyUser } from '../_lib/verifyUser.js'
+import { hasAdminRole } from '../_lib/adminRole.js'
 
 // GET /api/app-access/status — the gate App.tsx checks before rendering
 // the tab shell (wired 2026-08-20; no existing users to grandfather, per
@@ -43,6 +44,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const user = await verifyUser(req)
   if (!user) {
     res.status(401).json({ error: 'Sila log masuk dahulu.' })
+    return
+  }
+
+  // Bug fix (2026-08-21): this gate was blocking the product owner's own
+  // master-admin account, demanding a subscription like any other user.
+  // ANY admin tier (master/super/admin — supabase/migrations/0007_admin_roles.sql)
+  // bypasses the subscription/lifetime-purchase gate entirely — an admin's
+  // reason for using the app (managing shipments, testing, etc.) has
+  // nothing to do with their own subscription status, same reasoning
+  // AdminShippingScreen.tsx's own comment already applies to reaching
+  // /admin/* outside this gate. This is the SAME gap for the regular tab
+  // shell (Sesi/Jurnal/etc.), not just the admin-only screens.
+  if (await hasAdminRole(user, 'admin')) {
+    res.status(200).json({ hasAccess: true, reason: 'admin', subscriptionExpiry: null })
     return
   }
 
