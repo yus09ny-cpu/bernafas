@@ -1,6 +1,20 @@
 import { useEffect, useState } from 'react'
-import { Loader2, Download, MousePointerClick, CircleDollarSign, Share2 } from 'lucide-react'
-import { fetchAffiliateDashboard, fetchAffiliateBookUrl, type AffiliateDashboardData } from '@/lib/affiliate'
+import { Loader2, Download, MousePointerClick, CircleDollarSign, Share2, Wallet, ExternalLink } from 'lucide-react'
+import { supabase } from '@/lib/supabase'
+import {
+  fetchAffiliateDashboard,
+  fetchAffiliateBookUrl,
+  fetchAffiliateMe,
+  updateAffiliateWiseEmail,
+  type AffiliateDashboardData,
+  type AffiliateSelf,
+} from '@/lib/affiliate'
+
+// The product owner's own Wise referral invite link — shown to every
+// affiliate so they sign up for Wise through it if they don't already have
+// an account. Static/global (not per-affiliate), so a plain constant is
+// enough — no config file needed for a single use site.
+const WISE_INVITE_URL = 'https://wise.com/invite/ahpc/mohdb1212'
 
 interface AffiliateDashboardScreenProps {
   affiliateId: string
@@ -10,21 +24,134 @@ function formatRM(amount: number): string {
   return `RM${amount.toFixed(2)}`
 }
 
+// "Terima Bayaran Melalui Wise" — spec's payout-details section. Always
+// shows the invite link (harmless, public, no auth needed), but the actual
+// e-mel form only renders once we've confirmed (via a real signed-in
+// session, see the parent's `self` state) that the viewer IS this exact
+// affiliate — never based on knowing this page's URL/affiliateId alone.
+// Someone viewing via a bare capability-link with no session, or signed in
+// as a DIFFERENT affiliate, gets a prompt to log in instead — they can
+// never see or overwrite this affiliate's payout e-mel.
+function WiseSection({
+  self,
+  selfChecked,
+  accessToken,
+  affiliateId,
+}: {
+  self: AffiliateSelf | null
+  selfChecked: boolean
+  accessToken: string | null
+  affiliateId: string
+}) {
+  const [email, setEmail] = useState('')
+  const [initialized, setInitialized] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const [saved, setSaved] = useState(false)
+
+  const matchedSelf = self && self.id === affiliateId ? self : null
+
+  useEffect(() => {
+    if (matchedSelf && !initialized) {
+      setEmail(matchedSelf.wise_email ?? '')
+      setInitialized(true)
+    }
+  }, [matchedSelf, initialized])
+
+  const handleSave = async () => {
+    if (!accessToken || saving) return
+    setSaving(true)
+    setSaveError(null)
+    setSaved(false)
+    const { success, error } = await updateAffiliateWiseEmail(accessToken, email.trim())
+    setSaving(false)
+    if (!success) {
+      setSaveError(error ?? 'Gagal simpan.')
+      return
+    }
+    setSaved(true)
+  }
+
+  return (
+    <div className="flex w-full max-w-xs flex-col gap-3 rounded-2xl bg-white/70 p-4 text-left">
+      <span className="flex items-center gap-1.5 text-sm font-semibold text-[var(--color-text)]">
+        <Wallet size={16} /> Terima Bayaran Melalui Wise
+      </span>
+
+      <a
+        href={WISE_INVITE_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex items-center gap-1 text-xs text-[var(--color-primary)] underline-offset-4 hover:underline"
+      >
+        Belum ada akaun Wise? Daftar di sini dulu <ExternalLink size={12} />
+      </a>
+
+      {!selfChecked && <Loader2 size={16} className="animate-spin text-[var(--color-primary)]" />}
+
+      {selfChecked && !matchedSelf && (
+        <p className="text-xs text-[var(--color-text-muted)]">
+          <a href="/affiliate/log-masuk" className="underline">Log masuk</a> sebagai affiliate ini untuk urus e-mel akaun Wise anda.
+        </p>
+      )}
+
+      {selfChecked && matchedSelf && (
+        <div className="flex flex-col gap-2">
+          <input
+            type="email"
+            inputMode="email"
+            value={email}
+            onChange={e => {
+              setEmail(e.target.value)
+              setSaved(false)
+            }}
+            placeholder="emel@akaunwise.com"
+            className="w-full rounded-lg border border-[var(--color-card-border)] bg-white/80 px-3 py-2 text-xs outline-none focus:border-[var(--color-primary)]"
+          />
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving}
+            className="flex items-center justify-center gap-1 rounded-lg bg-[var(--color-primary)] px-3 py-2 text-xs font-semibold text-white disabled:opacity-50"
+          >
+            {saving ? <Loader2 size={12} className="animate-spin" /> : 'Simpan Emel Akaun Wise'}
+          </button>
+          {saveError && <p className="text-xs text-[var(--color-warm)]">{saveError}</p>}
+          {saved && <p className="text-xs text-[var(--color-primary-dark)]">Disimpan.</p>}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // /affiliate/dashboard/:id — spec item 5, kept deliberately simple: click
 // count + real sale counts (from `orders`, not affiliate_commissions — see
 // api/affiliate/dashboard.ts's own comment on why), plus real commission
 // RM totals now that the rate decision has landed (commissions.ts) — split
 // by source (own sales vs. the 5% referral override from a downline) so
 // an affiliate with referrals can see both income streams distinctly.
-// `affiliateId` doubles as this screen's only access control (see
-// dashboard.ts's comment on the gap that leaves) — no separate affiliate
-// login exists yet.
+// `affiliateId` doubles as this screen's only access control for the
+// aggregate counts below — affiliate login (0008_affiliate_auth.sql) now
+// exists, but reaching this screen still doesn't require it (a bookmarked
+// dashboard link keeps working). The Wise-payout section further down is
+// stricter: it only reads/writes via a real signed-in session (see its own
+// comment), never via this `affiliateId` alone — a real Supabase Auth
+// session tied to `wise_email`'s access model matters more than every other
+// field on this screen.
 export default function AffiliateDashboardScreen({ affiliateId }: AffiliateDashboardScreenProps) {
   const [data, setData] = useState<AffiliateDashboardData | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [downloading, setDownloading] = useState(false)
   const [downloadError, setDownloadError] = useState<string | null>(null)
+
+  // Signed-in affiliate (if any) — resolved independently of `affiliateId`.
+  // `self` only ever comes from a verified Supabase Auth session
+  // (fetchAffiliateMe), never from the URL, so it can only ever be the
+  // actual caller's own account.
+  const [self, setSelf] = useState<AffiliateSelf | null>(null)
+  const [accessToken, setAccessToken] = useState<string | null>(null)
+  const [selfChecked, setSelfChecked] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -38,6 +165,25 @@ export default function AffiliateDashboardScreen({ affiliateId }: AffiliateDashb
       cancelled = true
     }
   }, [affiliateId])
+
+  useEffect(() => {
+    let cancelled = false
+    supabase.auth.getSession().then(async ({ data: sessionData }) => {
+      const token = sessionData.session?.access_token
+      if (!token) {
+        if (!cancelled) setSelfChecked(true)
+        return
+      }
+      const { data: affiliate } = await fetchAffiliateMe(token)
+      if (cancelled) return
+      setAccessToken(token)
+      setSelf(affiliate)
+      setSelfChecked(true)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const handleDownload = async () => {
     if (!data || downloading) return
@@ -107,22 +253,28 @@ export default function AffiliateDashboardScreen({ affiliateId }: AffiliateDashb
         <div className="flex items-center justify-between text-xs">
           <span className="text-[var(--color-text-muted)]">Daripada jualan sendiri</span>
           <span className="font-medium text-[var(--color-text)]">
-            {formatRM(data.commissions.sale.paid)} dibayar · {formatRM(data.commissions.sale.pending)} pending
+            {formatRM(data.commissions.sale.pending)} belum dibayar · {formatRM(data.commissions.sale.paid)} dah dibayar
           </span>
         </div>
         <div className="flex items-center justify-between text-xs">
           <span className="text-[var(--color-text-muted)]">Daripada rujukan</span>
           <span className="font-medium text-[var(--color-text)]">
-            {formatRM(data.commissions.referralOverride.paid)} dibayar · {formatRM(data.commissions.referralOverride.pending)} pending
+            {formatRM(data.commissions.referralOverride.pending)} belum dibayar · {formatRM(data.commissions.referralOverride.paid)} dah dibayar
           </span>
         </div>
-        <div className="mt-1 flex items-center justify-between border-t border-[var(--color-border)] pt-2 text-sm">
-          <span className="font-semibold text-[var(--color-text)]">Jumlah</span>
-          <span className="font-bold text-[var(--color-primary-dark)]">
-            {formatRM(totalPaid)} dibayar · {formatRM(totalPending)} pending
-          </span>
+        <div className="mt-1 flex flex-col gap-1 border-t border-[var(--color-border)] pt-2 text-sm">
+          <div className="flex items-center justify-between">
+            <span className="font-semibold text-[var(--color-text)]">Belum Dibayar</span>
+            <span className="font-bold text-[var(--color-warm)]">{formatRM(totalPending)}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="font-semibold text-[var(--color-text)]">Dah Dibayar</span>
+            <span className="font-bold text-[var(--color-primary-dark)]">{formatRM(totalPaid)}</span>
+          </div>
         </div>
       </div>
+
+      <WiseSection self={self} selfChecked={selfChecked} accessToken={accessToken} affiliateId={affiliateId} />
 
       <button
         type="button"

@@ -23,6 +23,10 @@ import { verifyUser } from './_lib/verifyUser.js'
 // Exported so api/_lib/affiliateAutoSignup.ts (auto-affiliate-on-purchase,
 // checkout/callback.ts) generates usernames matching the exact same rule
 // this endpoint enforces for manual registration — single source of truth.
+// updateWiseEmail (2026-08-22) added here rather than a new file — the
+// Vercel Hobby 12-function cap that originally forced this merge is gone
+// (Pro plan now), but this action is still an affiliate-self action same as
+// dashboard/book/me, so it belongs with them regardless of the cap.
 export const USERNAME_PATTERN = /^[a-z0-9_-]{3,32}$/
 
 // ─── register ──────────────────────────────────────────────────────────
@@ -220,10 +224,13 @@ async function handleMe(req: VercelRequest, res: VercelResponse) {
   }
 
   // Already linked from a previous login — the common case after the
-  // first one.
+  // first one. wise_email included here (not in handleDashboard's
+  // capability-link response) — this route is the ONLY place that reads it
+  // back to the client, gated by a real Supabase Auth session tied to
+  // auth_user_id, never by the plain dashboard `id` URL param.
   const { data: linked, error: linkedError } = await supabaseAdmin
     .from('affiliates')
-    .select('id, username, name, status')
+    .select('id, username, name, status, wise_email')
     .eq('auth_user_id', user.id)
     .maybeSingle()
 
@@ -243,7 +250,7 @@ async function handleMe(req: VercelRequest, res: VercelResponse) {
   const normalizedEmail = user.email.trim().toLowerCase()
   const { data: candidate, error: candidateError } = await supabaseAdmin
     .from('affiliates')
-    .select('id, username, name, status, auth_user_id')
+    .select('id, username, name, status, wise_email, auth_user_id')
     .eq('email', normalizedEmail)
     .maybeSingle()
 
@@ -270,7 +277,7 @@ async function handleMe(req: VercelRequest, res: VercelResponse) {
     .from('affiliates')
     .update({ auth_user_id: user.id })
     .eq('id', candidate.id)
-    .select('id, username, name, status')
+    .select('id, username, name, status, wise_email')
     .single()
 
   if (updateError) {
@@ -280,6 +287,62 @@ async function handleMe(req: VercelRequest, res: VercelResponse) {
   }
 
   res.status(200).json({ affiliate: updated })
+}
+
+// ─── updateWiseEmail ───────────────────────────────────────────────────
+// POST /api/affiliate?action=updateWiseEmail — { wiseEmail } (empty string
+// clears it back to null). Spec: affiliate gives their Wise account email
+// so the admin can pay commissions manually via the Wise app — NOT a bank
+// account form (product owner's explicit correction, 2026-08-22: bank
+// transfer was the original draft spec, replaced with Wise before any code
+// was written this round, see this session's own request). Requires a real
+// Supabase Auth session (same handleMe pattern) and resolves the affiliate
+// row via auth_user_id — deliberately does NOT accept an affiliate id/
+// username from the request body, so a viewer holding someone else's
+// dashboard capability-link URL can never write to that affiliate's payout
+// destination, only their own signed-in one.
+async function handleUpdateWiseEmail(req: VercelRequest, res: VercelResponse) {
+  const user = await verifyUser(req)
+  if (!user) {
+    res.status(401).json({ error: 'Log masuk diperlukan.' })
+    return
+  }
+
+  const { wiseEmail } = (req.body ?? {}) as { wiseEmail?: string }
+  const trimmed = wiseEmail?.trim() ?? ''
+  if (trimmed && !trimmed.includes('@')) {
+    res.status(400).json({ error: 'E-mel Wise tidak sah.' })
+    return
+  }
+
+  const { data: affiliate, error: findError } = await supabaseAdmin
+    .from('affiliates')
+    .select('id')
+    .eq('auth_user_id', user.id)
+    .maybeSingle()
+
+  if (findError) {
+    console.error('[api/affiliate action=updateWiseEmail] lookup failed:', findError.message)
+    res.status(500).json({ error: 'Gagal semak akaun.' })
+    return
+  }
+  if (!affiliate) {
+    res.status(404).json({ error: 'Akaun affiliate tidak dijumpai.' })
+    return
+  }
+
+  const { error: updateError } = await supabaseAdmin
+    .from('affiliates')
+    .update({ wise_email: trimmed || null })
+    .eq('id', affiliate.id)
+
+  if (updateError) {
+    console.error('[api/affiliate action=updateWiseEmail] update failed:', updateError.message)
+    res.status(500).json({ error: 'Gagal simpan e-mel Wise.' })
+    return
+  }
+
+  res.status(200).json({ success: true, wiseEmail: trimmed || null })
 }
 
 // ─── book ──────────────────────────────────────────────────────────────
@@ -415,6 +478,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === 'GET' && action === 'dashboard') return handleDashboard(req, res)
   if (req.method === 'GET' && action === 'book') return handleBook(req, res)
   if (req.method === 'GET' && action === 'me') return handleMe(req, res)
+  if (req.method === 'POST' && action === 'updateWiseEmail') return handleUpdateWiseEmail(req, res)
 
   res.status(404).json({ error: 'Unknown action.' })
 }

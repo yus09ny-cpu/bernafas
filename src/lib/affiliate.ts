@@ -120,6 +120,7 @@ export interface AffiliateSelf {
   username: string
   name: string
   status: string
+  wise_email: string | null
 }
 
 // AffiliateLoginScreen.tsx's post-sign-in step — resolves the just-signed-in
@@ -134,6 +135,22 @@ export async function fetchAffiliateMe(accessToken: string): Promise<{ data: Aff
   const data = await response.json().catch(() => ({}))
   if (!response.ok) return { data: null, error: data.error ?? 'Gagal semak akaun.' }
   return { data: data.affiliate as AffiliateSelf, error: null }
+}
+
+// AffiliateDashboardScreen.tsx's "Terima Bayaran Melalui Wise" form — pass
+// the SAME accessToken fetchAffiliateMe used to load the current value.
+// Server resolves the affiliate row from the token itself (auth_user_id),
+// never from any id/username this call could pass, so this can only ever
+// update the signed-in caller's own row.
+export async function updateAffiliateWiseEmail(accessToken: string, wiseEmail: string): Promise<{ success: boolean; error: string | null }> {
+  const response = await fetch('/api/affiliate?action=updateWiseEmail', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify({ wiseEmail }),
+  })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) return { success: false, error: data.error ?? 'Gagal simpan e-mel Wise.' }
+  return { success: true, error: null }
 }
 
 // useAuth's signInWithGoogle always redirects back to window.location.origin
