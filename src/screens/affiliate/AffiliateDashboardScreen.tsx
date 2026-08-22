@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Loader2, Download, MousePointerClick, CircleDollarSign, Share2, Wallet, ExternalLink } from 'lucide-react'
+import { Loader2, Download, MousePointerClick, CircleDollarSign, Share2, Wallet, ExternalLink, BookOpen } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import {
   fetchAffiliateDashboard,
@@ -120,6 +120,74 @@ function WiseSection({
           {saved && <p className="text-xs text-[var(--color-primary-dark)]">Disimpan.</p>}
         </div>
       )}
+    </div>
+  )
+}
+
+// UI-only content card — no logic/schema change, just tells affiliates the
+// two ways people can end up with the personalized PDF and still trigger a
+// commission (the referral link baked into the PDF is what actually tracks
+// the sale, not the delivery channel). Tabbed rather than both-open so the
+// card stays short next to the download button it sits below.
+function ShareGuideSection() {
+  const [tab, setTab] = useState<'terus' | 'drive'>('terus')
+
+  const tabButtonClass = (active: boolean) =>
+    `flex-1 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
+      active ? 'bg-[var(--color-primary)] text-white' : 'text-[var(--color-text-muted)]'
+    }`
+
+  return (
+    <div className="flex w-full max-w-xs flex-col gap-3 rounded-2xl bg-white/60 p-4 text-left">
+      <span className="flex items-center gap-1.5 text-sm font-semibold text-[var(--color-text)]">
+        <BookOpen size={16} /> Cara Kongsi Buku Anda
+      </span>
+
+      <div className="flex gap-1 rounded-full bg-white/70 p-1">
+        <button type="button" onClick={() => setTab('terus')} className={tabButtonClass(tab === 'terus')}>
+          Cara 1: Hantar Terus
+        </button>
+        <button type="button" onClick={() => setTab('drive')} className={tabButtonClass(tab === 'drive')}>
+          Cara 2: Google Drive
+        </button>
+      </div>
+
+      {tab === 'terus' ? (
+        <div className="flex flex-col gap-1.5">
+          <span className="text-xs font-medium text-[var(--color-text)]">Paling pantas</span>
+          <ol className="flex flex-col gap-1 pl-4 text-xs text-[var(--color-text-muted)]" style={{ listStyleType: 'decimal' }}>
+            <li>Muat turun buku diperibadikan anda (guna butang di atas)</li>
+            <li>Hantar fail PDF tu terus kepada rakan-rakan melalui WhatsApp, Telegram, atau emel — senang dan pantas</li>
+          </ol>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-1.5">
+          <span className="text-xs font-medium text-[var(--color-text)]">Untuk kongsi lebih luas</span>
+          <ol className="flex flex-col gap-1 pl-4 text-xs text-[var(--color-text-muted)]" style={{ listStyleType: 'decimal' }}>
+            <li>Muat turun buku diperibadikan anda</li>
+            <li>Simpan fail tu ke Google Drive anda sendiri</li>
+            <li>Dapatkan pautan kongsi (share link) daripada Google Drive</li>
+            <li>
+              Pendekkan pautan tu dan jana QR code sekali guna di{' '}
+              <a
+                href="https://qrlink.bernafas.my"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-0.5 text-[var(--color-primary)] underline-offset-4 hover:underline"
+              >
+                qrlink.bernafas.my <ExternalLink size={10} />
+              </a>
+            </li>
+            <li>Kongsi pautan/QR dengan rakan-rakan anda — senang untuk siar di media sosial atau poster fizikal</li>
+          </ol>
+        </div>
+      )}
+
+      <p className="border-t border-[var(--color-border)] pt-2 text-[11px] text-[var(--color-text-muted)]">
+        Ini maklumat <span className="font-semibold text-[var(--color-text)]">PERCUMA</span> — galakkan rakan-rakan anda
+        baca dan ketahui lebih lanjut. Setiap kali seseorang klik pautan pembelian di dalam buku dan beli, anda dapat
+        komisen — tak kira cara mana mereka terima buku tu (terus, Google Drive, atau QR code).
+      </p>
     </div>
   )
 }
@@ -285,6 +353,8 @@ export default function AffiliateDashboardScreen({ affiliateId }: AffiliateDashb
         <Download size={18} /> {downloading ? 'Menjana...' : 'Muat Turun Buku Saya'}
       </button>
       {downloadError && <p className="max-w-xs text-sm text-[var(--color-warm)]">{downloadError}</p>}
+
+      <ShareGuideSection />
 
       <div className="flex w-full max-w-xs flex-col gap-2 rounded-2xl bg-white/60 p-4 text-left">
         <span className="flex items-center gap-1.5 text-sm font-semibold text-[var(--color-text)]">
