@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Loader2, Download, MousePointerClick, CircleDollarSign, Share2, Wallet, ExternalLink, BookOpen } from 'lucide-react'
+import { Loader2, Download, MousePointerClick, CircleDollarSign, Share2, Wallet, ExternalLink, BookOpen, LogOut } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import {
   fetchAffiliateDashboard,
@@ -212,6 +212,7 @@ export default function AffiliateDashboardScreen({ affiliateId }: AffiliateDashb
   const [loading, setLoading] = useState(true)
   const [downloading, setDownloading] = useState(false)
   const [downloadError, setDownloadError] = useState<string | null>(null)
+  const [loggingOut, setLoggingOut] = useState(false)
 
   // Signed-in affiliate (if any) — resolved independently of `affiliateId`.
   // `self` only ever comes from a verified Supabase Auth session
@@ -269,6 +270,21 @@ export default function AffiliateDashboardScreen({ affiliateId }: AffiliateDashb
     window.location.href = url
   }
 
+  // Only shown once we've confirmed (via the same real session check the
+  // Wise section uses) that there's an actual signed-in session to end —
+  // there's nothing to sign out of for an anonymous visitor viewing this
+  // dashboard via its bookmarkable link (see this component's own header
+  // comment on affiliateId-only access for the aggregate stats).
+  const handleLogout = async () => {
+    if (loggingOut) return
+    setLoggingOut(true)
+    await supabase.auth.signOut()
+    // Full navigation (not client-side state reset) so every bit of local
+    // state derived from the old session — self, accessToken, the Wise
+    // e-mel form — is gone rather than needing to be individually cleared.
+    window.location.href = '/affiliate/log-masuk'
+  }
+
   if (loading) {
     return (
       <div className="flex h-full w-full items-center justify-center">
@@ -294,9 +310,19 @@ export default function AffiliateDashboardScreen({ affiliateId }: AffiliateDashb
       className="flex h-full w-full flex-col items-center gap-6 overflow-y-auto px-6 py-10 text-center"
       style={{ paddingTop: 'calc(2.5rem + var(--safe-top))', paddingBottom: 'calc(2rem + var(--safe-bottom))' }}
     >
-      <div className="flex flex-col gap-1">
+      <div className="flex flex-col items-center gap-1">
         <span className="text-lg font-bold text-[var(--color-primary-dark)]">Selamat datang, {data.affiliate.name}</span>
         <span className="text-sm text-[var(--color-text-muted)]">bernafas.my/beli?ref={data.affiliate.username}</span>
+        {self && self.id === affiliateId && (
+          <button
+            type="button"
+            onClick={handleLogout}
+            disabled={loggingOut}
+            className="mt-1 flex items-center gap-1 text-xs text-[var(--color-text-muted)] underline-offset-4 hover:underline disabled:opacity-50"
+          >
+            <LogOut size={12} /> {loggingOut ? 'Log keluar...' : 'Log Keluar'}
+          </button>
+        )}
       </div>
 
       <div className="flex w-full max-w-xs gap-3">
