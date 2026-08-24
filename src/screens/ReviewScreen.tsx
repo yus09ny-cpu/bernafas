@@ -1,13 +1,15 @@
 import { useState } from 'react'
-import { HistoryTabIcon, ProgressTabIcon } from '@/screens/review/icons'
+import { AwardsTabIcon, HistoryTabIcon, ProgressTabIcon } from '@/screens/review/icons'
 import HistoryTab from '@/screens/review/HistoryTab'
 import ProgressTab from '@/screens/review/ProgressTab'
+import AwardsTab from '@/screens/review/AwardsTab'
 
-type ReviewSubTab = 'history' | 'progress'
+type ReviewSubTab = 'history' | 'progress' | 'awards'
 
 const SUB_TABS: Array<{ id: ReviewSubTab; label: string; Icon: typeof HistoryTabIcon }> = [
   { id: 'history', label: 'Sejarah', Icon: HistoryTabIcon },
   { id: 'progress', label: 'Progres', Icon: ProgressTabIcon },
+  { id: 'awards', label: 'Anugerah', Icon: AwardsTabIcon },
 ]
 
 // Semakan (Review) — icon-based sub-tab strip at the top, its own
@@ -51,6 +53,7 @@ export default function ReviewScreen() {
 
       {subTab === 'history' && <HistoryTab />}
       {subTab === 'progress' && <ProgressTab />}
+      {subTab === 'awards' && <AwardsTab />}
     </div>
   )
 }

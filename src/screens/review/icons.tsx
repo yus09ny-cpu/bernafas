@@ -46,3 +46,23 @@ export function ProgressTabIcon({ active, size = 18 }: SubTabIconProps) {
     </svg>
   )
 }
+
+// Awards — a rosette (circle + ribbon tails), distinct from HistoryTabIcon's
+// plain clock circle and ProgressTabIcon's line. Same circle+path pattern
+// as HistoryTabIcon so the three sub-tab icons read as one family.
+export function AwardsTabIcon({ active, size = 18 }: SubTabIconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <circle
+        cx="12"
+        cy="9.5"
+        r="5.5"
+        stroke="currentColor"
+        strokeWidth={STROKE_WIDTH}
+        fill={active ? 'currentColor' : 'none'}
+        fillOpacity={0.12}
+      />
+      <path d="M9 14.3l-2 6 5-2.5 5 2.5-2-6" stroke="currentColor" strokeWidth={STROKE_WIDTH} strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
