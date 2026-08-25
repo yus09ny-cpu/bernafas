@@ -18,7 +18,21 @@ import { convertDocxToPdf } from '../_lib/convertDocxToPdf.js'
 // affiliate excerpt — there is exactly ONE PDF to ever generate per
 // version, shared by every buyer (see book_generations' migration
 // comment).
-const FULL_BOOK_VERSION = 'v1'
+//
+// v2 (2026-08-25): Bab 1-3 AI/Heart Brain theme + new "Kereta Elektrik"
+// (EV) metaphor added. Confirmed the 3 hyperlinks (Jalan 2 bernafas.my/beli
+// text + Jalan 3 https://bernafas.my/affiliate/daftar relationship + the
+// www.bernafas.my colophon) are byte-identical to v1 — untouched by this
+// content edit.
+//
+// v3 (2026-08-25): 3-Jalan CTA rebuilt at the correct location (end of
+// book, right before LAMPIRAN — earlier misplaced mid-book in a prior
+// edit). Jalan 2 (bernafas.my/beli) is now an actual hyperlink
+// relationship, not just text. "6 Minggu" corrected to "40 Hari" in three
+// places: Bab 13's opening sentence, the ISI KANDUNGAN entry, and the
+// chapter heading itself — matching the "40 hari" terminology used
+// throughout the rest of the book. Still no {{AFFILIATE_REF}} token.
+const FULL_BOOK_VERSION = 'v3'
 
 const TEMPLATE_PATH = path.join(process.cwd(), 'buku', 'INI_JANTUNGMU_A5_dengan_CTA_3_Jalan_1.docx')
 const STORAGE_BUCKET = 'affiliate-books' // reused, not a new bucket — see this session's notes on why

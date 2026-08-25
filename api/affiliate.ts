@@ -358,7 +358,10 @@ async function handleUpdateWiseEmail(req: VercelRequest, res: VercelResponse) {
 // update") — the next request per affiliate regenerates instead of
 // reusing the cached row. Change this string whenever
 // buku/INI_JANTUNGMU_template.docx is edited.
-const BOOK_VERSION = 'v2'
+//
+// v3 (2026-08-25): Bab 1 AI/Heart Brain content added; the 3
+// {{AFFILIATE_REF}} hyperlink relationships re-verified/fixed.
+const BOOK_VERSION = 'v3'
 const TEMPLATE_PATH = path.join(process.cwd(), 'buku', 'INI_JANTUNGMU_template.docx')
 const STORAGE_BUCKET = 'affiliate-books'
 
