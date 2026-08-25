@@ -1,36 +1,18 @@
-import { useState } from 'react'
-import { Loader2, Download, BookOpen } from 'lucide-react'
-import { fetchFullBookUrl } from '@/lib/book'
+import { BookOpen } from 'lucide-react'
 
-// "Muat Turun Buku Penuh Saya" — GuidesScreen's entry point into the
-// purchase-gated full (13-bab) book (api/book/full.ts). Click-triggers the
-// purchase check + download, same pattern as
-// AffiliateDashboardScreen.tsx's handleDownload — deliberately NOT an
-// on-mount auto-check, so opening the Panduan tab never silently fires a
-// request before the user actually asks for the book.
+// "Baca Buku Penuh" — GuidesScreen's entry point into the in-app reader
+// (/baca/:chapterNumber -> BookReaderScreen). Used to be "Muat Turun Buku
+// Penuh Saya" (a signed-URL PDF download via api/book/full.ts) — replaced
+// entirely so the full book can't be redistributed as a file once
+// downloaded; api/book/full.ts itself is kept but no longer called from
+// anywhere in the UI.
+//
+// No pre-navigation purchase check here (unlike the old handleDownload) —
+// Bab 0-2 are free for any signed-in user with no access check at all
+// (api/book/chapter.ts), so this button can always navigate straight to
+// chapter 0. The paywall (Bab 3+) is handled inside the reader itself,
+// per chapter, not here.
 export default function FullBookCard() {
-  const [downloading, setDownloading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [notPurchased, setNotPurchased] = useState(false)
-
-  const handleDownload = async () => {
-    if (downloading) return
-    setDownloading(true)
-    setError(null)
-    setNotPurchased(false)
-    const { url, error, notPurchased } = await fetchFullBookUrl()
-    setDownloading(false)
-    if (notPurchased) {
-      setNotPurchased(true)
-      return
-    }
-    if (error || !url) {
-      setError(error ?? 'Gagal jana pautan muat turun.')
-      return
-    }
-    window.location.href = url
-  }
-
   return (
     <div className="flex flex-col items-center gap-3 rounded-2xl bg-white/70 px-5 py-5 text-center">
       <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--color-primary)]/10 text-[var(--color-primary)]">
@@ -38,31 +20,19 @@ export default function FullBookCard() {
       </div>
       <div className="flex flex-col gap-0.5">
         <span className="text-sm font-semibold text-[var(--color-text)]">Buku "Ini Jantungmu" — Penuh</span>
-        <span className="text-xs text-[var(--color-text-muted)]">13 bab lengkap, dalam format PDF</span>
+        <span className="text-xs text-[var(--color-text-muted)]">13 bab lengkap, baca dalam app</span>
       </div>
 
       <button
         type="button"
-        onClick={handleDownload}
-        disabled={downloading}
-        className="flex items-center justify-center gap-2 rounded-xl bg-[var(--color-primary)] px-4 py-2.5 text-sm font-semibold text-white transition-transform active:scale-[0.98] disabled:opacity-50"
+        onClick={() => {
+          window.location.href = '/baca/0'
+        }}
+        className="flex items-center justify-center gap-2 rounded-xl bg-[var(--color-primary)] px-4 py-2.5 text-sm font-semibold text-white transition-transform active:scale-[0.98]"
       >
-        {downloading ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
-        {downloading ? 'Menjana...' : 'Muat Turun Buku Penuh Saya'}
+        <BookOpen size={16} />
+        Baca Buku Penuh
       </button>
-
-      {notPurchased && (
-        <div className="flex flex-col items-center gap-2 text-xs text-[var(--color-text-muted)]">
-          <p>Anda belum membeli buku penuh ini.</p>
-          <a
-            href="/beli"
-            className="font-semibold text-[var(--color-primary)] underline underline-offset-2"
-          >
-            Lihat pilihan pembelian
-          </a>
-        </div>
-      )}
-      {error && <p className="text-xs text-[var(--color-warm)]">{error}</p>}
     </div>
   )
 }

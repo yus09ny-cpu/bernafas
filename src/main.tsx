@@ -12,6 +12,7 @@ import AdminManagementScreen from '@/screens/admin/AdminManagementScreen'
 import AdminManualPaymentScreen from '@/screens/admin/AdminManualPaymentScreen'
 import AdminCommissionsScreen from '@/screens/admin/AdminCommissionsScreen'
 import PaymentSuccessScreen from '@/screens/PaymentSuccessScreen'
+import BookReaderScreen from '@/screens/BookReaderScreen'
 import './index.css'
 
 // Public/side-gate routes live outside App.tsx's auth+app-access gate —
@@ -51,6 +52,13 @@ function PublicRoot() {
 
   if (pathname === '/beli') return <BeliLandingScreen />
   if (pathname === '/beli/selesai') return <PaymentSuccessScreen />
+
+  // In-app full-book reader — own auth check (BookReaderScreen), not
+  // App.tsx's app-access gate. See that screen's own header comment for
+  // why: a 'buku'-only buyer (no subscription/lifetime) can't pass
+  // app-access, but still needs to reach the book they paid for.
+  const bacaMatch = pathname.match(/^\/baca\/(\d+)$/)
+  if (bacaMatch) return <BookReaderScreen chapterNumber={Number(bacaMatch[1])} />
 
   if (pathname === '/admin/penghantaran') return <AdminShippingScreen />
   if (pathname === '/admin/pengurusan-admin') return <AdminManagementScreen />
