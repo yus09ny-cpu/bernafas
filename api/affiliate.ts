@@ -361,7 +361,11 @@ async function handleUpdateWiseEmail(req: VercelRequest, res: VercelResponse) {
 //
 // v3 (2026-08-25): Bab 1 AI/Heart Brain content added; the 3
 // {{AFFILIATE_REF}} hyperlink relationships re-verified/fixed.
-const BOOK_VERSION = 'v3'
+//
+// v4 (2026-08-25): 3 images added (book cover, Bab 1 + Bab 2
+// infografik). Confirmed the 3 {{AFFILIATE_REF}} hyperlink
+// relationships are still intact, untouched by this image addition.
+const BOOK_VERSION = 'v4'
 const TEMPLATE_PATH = path.join(process.cwd(), 'buku', 'INI_JANTUNGMU_template.docx')
 const STORAGE_BUCKET = 'affiliate-books'
 
