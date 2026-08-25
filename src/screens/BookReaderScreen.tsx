@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react'
+import { ChevronLeft, ChevronRight, List, Loader2, X } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import AuthScreen from '@/screens/AuthScreen'
 import { CHAPTERS, fetchChapter, type Chapter } from '@/lib/bookReader'
@@ -27,6 +27,7 @@ export default function BookReaderScreen({ chapterNumber: initialChapterNumber }
   const { status } = useAuth()
   const [chapterNumber, setChapterNumber] = useState(initialChapterNumber)
   const [state, setState] = useState<LoadState>({ status: 'loading' })
+  const [showChapterList, setShowChapterList] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -71,15 +72,26 @@ export default function BookReaderScreen({ chapterNumber: initialChapterNumber }
   const goToChapter = (n: number) => {
     window.history.pushState(null, '', `/baca/${n}`)
     setChapterNumber(n)
+    setShowChapterList(false)
   }
 
   return (
     <div className="flex h-dvh w-full flex-col bg-[var(--color-background)]">
       <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto max-w-2xl px-5 pb-8 pt-[calc(1.5rem+var(--safe-top))]">
-          <a href="/" className="mb-4 inline-block text-xs font-semibold text-[var(--color-primary)]">
-            ← Kembali
-          </a>
+          <div className="mb-4 flex items-center justify-between">
+            <a href="/" className="text-xs font-semibold text-[var(--color-primary)]">
+              ← Kembali
+            </a>
+            <button
+              type="button"
+              onClick={() => setShowChapterList(true)}
+              className="flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-semibold text-[var(--color-primary)]"
+            >
+              <List size={15} />
+              Senarai Bab
+            </button>
+          </div>
 
           {state.status === 'loading' && (
             <div className="flex justify-center py-16">
@@ -136,6 +148,41 @@ export default function BookReaderScreen({ chapterNumber: initialChapterNumber }
           <ChevronRight size={16} />
         </button>
       </div>
+
+      {showChapterList && (
+        <div className="fixed inset-0 z-50 flex flex-col justify-end bg-black/40" onClick={() => setShowChapterList(false)}>
+          <div
+            className="flex max-h-[80vh] flex-col rounded-t-2xl bg-[var(--color-background)] pb-[var(--safe-bottom)]"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-black/5 px-5 py-4">
+              <h2 className="text-sm font-semibold text-[var(--color-text)]">Senarai Bab</h2>
+              <button type="button" onClick={() => setShowChapterList(false)} aria-label="Tutup">
+                <X size={18} className="text-[var(--color-text-muted)]" />
+              </button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto py-2">
+              {CHAPTERS.map(c => {
+                const isCurrent = c.number === chapterNumber
+                return (
+                  <button
+                    key={c.number}
+                    type="button"
+                    onClick={() => goToChapter(c.number)}
+                    className={`block w-full px-5 py-3 text-left text-sm ${
+                      isCurrent
+                        ? 'font-semibold text-[var(--color-primary)] bg-[var(--color-primary)]/5'
+                        : 'text-[var(--color-text)]'
+                    }`}
+                  >
+                    {c.label}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
