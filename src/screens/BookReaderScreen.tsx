@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { ChevronLeft, ChevronRight, List, Loader2, X } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import AuthScreen from '@/screens/AuthScreen'
-import { CHAPTERS, fetchChapter, type Chapter } from '@/lib/bookReader'
+import { CHAPTERS, fetchChapter, saveReadingProgress, type Chapter } from '@/lib/bookReader'
 
 type LoadState =
   | { status: 'loading' }
@@ -24,7 +24,7 @@ type LoadState =
 // request (never a one-time signed URL that keeps working after access
 // lapses).
 export default function BookReaderScreen({ chapterNumber: initialChapterNumber }: { chapterNumber: number }) {
-  const { status } = useAuth()
+  const { status, session } = useAuth()
   const [chapterNumber, setChapterNumber] = useState(initialChapterNumber)
   const [state, setState] = useState<LoadState>({ status: 'loading' })
   const [showChapterList, setShowChapterList] = useState(false)
@@ -42,12 +42,20 @@ export default function BookReaderScreen({ chapterNumber: initialChapterNumber }
         setState({ status: 'error', message: error ?? 'Gagal muatkan bab.' })
       } else {
         setState({ status: 'loaded', chapter: data })
+        // "Sambung Membaca" bookmark — only a chapter the user actually
+        // got to read counts (not a paywall/error state above). Never
+        // awaited — must not delay/block the read itself.
+        if (session?.user.id) saveReadingProgress(session.user.id, data.chapterNumber)
       }
       scrollRef.current?.scrollTo({ top: 0 })
     })
     return () => {
       cancelled = true
     }
+    // session intentionally excluded — it only matters while status is
+    // already 'signed-in' (session is null otherwise), and its identity
+    // can change (token refresh) without user.id changing; re-running
+    // this effect only needs to happen on status/chapterNumber changes.
   }, [status, chapterNumber])
 
   // Browser back/forward — /baca/N URLs are pushed by goToChapter below,

@@ -58,3 +58,35 @@ export async function fetchChapter(chapterNumber: number): Promise<FetchChapterR
   }
   return { data: { chapterNumber: body.chapterNumber, title: body.title, contentHtml: body.contentHtml }, error: null, notPurchased: false }
 }
+
+// "Sambung Membaca" — profiles.last_read_chapter/last_read_at
+// (supabase/migrations/0012_reading_progress.sql). Direct client-side
+// reads/writes via RLS's "select own"/"update own" policies, same
+// established pattern as src/lib/program40/enrollment.ts's own direct
+// .update() calls — no api/ route needed for a single-row, owner-scoped
+// value like this.
+
+// FullBookCard's mount-time check — null (not an error) means the user
+// has never opened the reader before, so the button stays "Baca Buku
+// Penuh" -> /baca/0 instead of "Sambung Membaca".
+export async function fetchReadingProgress(userId: string): Promise<number | null> {
+  const { data, error } = await supabase.from('profiles').select('last_read_chapter').eq('id', userId).maybeSingle()
+  if (error || !data) return null
+  return data.last_read_chapter
+}
+
+// BookReaderScreen calls this on every successful chapter load (not on a
+// paywall/error state — only a chapter the user actually got to read
+// counts as "read"). Deliberately fire-and-forget: a failed bookmark
+// write must never block or interrupt reading, same reasoning as
+// enrollment.ts's own notifyProgram40Completed comment ("Never
+// awaited/blocking").
+export function saveReadingProgress(userId: string, chapterNumber: number): void {
+  supabase
+    .from('profiles')
+    .update({ last_read_chapter: chapterNumber, last_read_at: new Date().toISOString() })
+    .eq('id', userId)
+    .then(({ error }) => {
+      if (error) console.error('[bookReader] save reading progress failed:', error.message)
+    })
+}
