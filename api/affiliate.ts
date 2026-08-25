@@ -365,7 +365,12 @@ async function handleUpdateWiseEmail(req: VercelRequest, res: VercelResponse) {
 // v4 (2026-08-25): 3 images added (book cover, Bab 1 + Bab 2
 // infografik). Confirmed the 3 {{AFFILIATE_REF}} hyperlink
 // relationships are still intact, untouched by this image addition.
-const BOOK_VERSION = 'v4'
+//
+// v5 (2026-08-25): Format/spacing fix (content unchanged) — the same
+// Word-resave that keeps quietly re-numbering word/media/*.jpeg also
+// keeps needing the {{AFFILIATE_REF}} token re-verified each time;
+// confirmed 3/3 intact again this round.
+const BOOK_VERSION = 'v5'
 const TEMPLATE_PATH = path.join(process.cwd(), 'buku', 'INI_JANTUNGMU_template.docx')
 const STORAGE_BUCKET = 'affiliate-books'
 
