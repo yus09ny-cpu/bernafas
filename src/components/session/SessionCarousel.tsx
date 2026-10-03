@@ -61,7 +61,7 @@ export default function SessionCarousel({ data, onEndSession, endedLabel }: Sess
           <Page1Ring data={data} smoothness={smoothness} ringSize={ringSize} />
         </div>
         <div className="h-full w-full shrink-0 snap-start snap-always">
-          <Page2Mandala data={data} />
+          <Page2Mandala data={data} isActive={activeIndex === 1} />
         </div>
         <div className="h-full w-full shrink-0 snap-start snap-always">
           <Page3Scene data={data} />

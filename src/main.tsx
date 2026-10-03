@@ -11,6 +11,7 @@ import AdminShippingScreen from '@/screens/admin/AdminShippingScreen'
 import AdminManagementScreen from '@/screens/admin/AdminManagementScreen'
 import AdminManualPaymentScreen from '@/screens/admin/AdminManualPaymentScreen'
 import AdminCommissionsScreen from '@/screens/admin/AdminCommissionsScreen'
+import WhmCueRecorderScreen from '@/screens/admin/WhmCueRecorderScreen'
 import PaymentSuccessScreen from '@/screens/PaymentSuccessScreen'
 import BookReaderScreen from '@/screens/BookReaderScreen'
 import './index.css'
@@ -64,6 +65,7 @@ function PublicRoot() {
   if (pathname === '/admin/pengurusan-admin') return <AdminManagementScreen />
   if (pathname === '/admin/bayaran-manual') return <AdminManualPaymentScreen />
   if (pathname === '/admin/komisen') return <AdminCommissionsScreen />
+  if (pathname === '/admin/whm-cues') return <WhmCueRecorderScreen />
 
   return <App />
 }
