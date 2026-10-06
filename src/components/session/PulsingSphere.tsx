@@ -19,6 +19,7 @@ export function PulsingSphere({
   smoothness = 1,
   color,
   size = 144,
+  heartbeat = true,
 }: {
   phase: BreathPhase
   phaseDurationMs: number
@@ -44,6 +45,14 @@ export function PulsingSphere({
    * Falls back to the source's own fixed teal when omitted (no reading yet).
    */
   color?: string
+  /**
+   * NOT part of the original calm-breath-pulse component (2026-10-06).
+   * false = no heartbeat tick at all (breath scale only), for callers with
+   * no real bpm to show — the `bpm || 60` fallback below would otherwise
+   * tick at a made-up 60 bpm. Defaults to true, so every existing caller
+   * (Skrin 1) behaves exactly as before.
+   */
+  heartbeat?: boolean
 }) {
   const breathRef = useRef<HTMLDivElement>(null)
   const beatRef = useRef<HTMLDivElement>(null)
@@ -132,6 +141,19 @@ export function PulsingSphere({
     const safeBpm = Math.min(200, Math.max(30, bpm || 60))
     beatAnimRef.current?.updatePlaybackRate(safeBpm / 60)
   }, [bpm])
+
+  // Paused at rest (scale 1) rather than cancelled, so turning it back on
+  // resumes the same single animation instead of creating a new one.
+  useEffect(() => {
+    const anim = beatAnimRef.current
+    if (!anim) return
+    if (heartbeat) {
+      anim.play()
+    } else {
+      anim.pause()
+      anim.currentTime = 0
+    }
+  }, [heartbeat])
 
   // Source repo's own fixed default — kept as the pre-reading fallback so
   // "no zone yet" still looks intentional rather than uncolored.

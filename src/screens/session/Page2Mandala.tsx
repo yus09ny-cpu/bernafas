@@ -20,17 +20,38 @@ const ZONE_FEEDBACK: Record<CoherenceZone, string> = {
 const ZONE_HOLD_MS = 3000
 const ZONE_FADE_MS = 300
 
-// Only commits a new zone to display after it's been the live zone
-// continuously for ZONE_HOLD_MS — a zone that flips back before the timer
-// fires just cancels it (effect cleanup), never reaching the screen. Null
-// (no sensor data / calibrating floor / before play) debounces exactly the
-// same way, so going idle also waits out the hold before the text hides.
-function useDebouncedZone(zone: CoherenceZone | null, delayMs: number): CoherenceZone | null {
-  const [debounced, setDebounced] = useState(zone)
+// What Skrin 2 is allowed to show right now (2026-10-06). Only a real zone
+// colours the sphere/text or credits the local ring tally — 'measuring'
+// (calibration floor, or waiting for the first fresh beat after contact /
+// connection came back) and 'noContact' (finger off the sensor) stay
+// neutral, the same gating Skrin 1/3 apply via coherenceAltReady, so a
+// floor-value 0 or a stale pre-gap reading never reads as a genuine score.
+// 'none' = no device connected at all: nothing to say, text stays hidden.
+type Page2Status = CoherenceZone | 'measuring' | 'noContact' | 'none'
+
+const STATUS_TEXT: Record<'measuring' | 'noContact', string> = {
+  measuring: 'Mengukur…',
+  noContact: 'Letakkan jari pada sensor',
+}
+
+function isZone(s: Page2Status | null): s is CoherenceZone {
+  return s === 'low' || s === 'medium' || s === 'high'
+}
+
+// Zone-to-zone changes only commit after the new zone has held for
+// ZONE_HOLD_MS (anti-flicker) — a zone that flips back before the timer
+// fires just cancels it (effect cleanup), never reaching the screen. Any
+// change involving a non-zone status (contact lost, calibrating, back to a
+// real reading) commits immediately: those are real state changes the user
+// needs to see now, not noise to smooth over.
+function useDebouncedStatus(status: Page2Status): Page2Status {
+  const [debounced, setDebounced] = useState(status)
   useEffect(() => {
-    const id = window.setTimeout(() => setDebounced(zone), delayMs)
+    if (status === debounced) return
+    const delay = isZone(status) && isZone(debounced) ? ZONE_HOLD_MS : 0
+    const id = window.setTimeout(() => setDebounced(status), delay)
     return () => window.clearTimeout(id)
-  }, [zone, delayMs])
+  }, [status, debounced])
   return debounced
 }
 
@@ -111,26 +132,59 @@ const IDLE_ZONES: Zone[] = Array<Zone>(SEGMENT_COUNT).fill('idle')
 // a taller 390x844 phone instead of the same fixed px on both.
 export default function Page2Mandala({ data, isActive }: { data: LiveSessionData; isActive: boolean }) {
   const [hasPlayed, setHasPlayed] = useState(false)
-  const { zones: localZones, reset } = useLocalZoneDominance(hasPlayed, data.elapsedSec, data.coherenceLiveAlt)
 
-  const zone = data.coherenceLiveAlt !== null ? getCoherenceZone(data.coherenceLiveAlt) : null
+  const connected = data.isDeviceConnected
+  const noContact = connected && (data.contactLost || data.sensorContact === 'not_detected')
+  const signalOk = connected && !noContact
 
-  // Held for ZONE_HOLD_MS before changing (anti-flicker), then cross-faded
-  // over ZONE_FADE_MS: displayZone only updates once stableZone has already
-  // settled AND the current text has fully faded out, so the swap never
-  // happens mid-fade.
-  const stableZone = useDebouncedZone(zone, ZONE_HOLD_MS)
-  const [displayZone, setDisplayZone] = useState<CoherenceZone | null>(null)
+  // coherenceLiveAlt isn't cleared on contact loss or a BLE drop
+  // (useHrvSession only clears coherenceLive), so right after the signal
+  // comes back it still holds the last pre-gap value until a new beat is
+  // accepted. Record when the signal last came back and require a beat
+  // newer than that before trusting the value again. Updated during render
+  // (React's "adjust state on prop change" pattern), not in an effect, so
+  // there's never a committed frame showing the stale zone. Starts at 0 —
+  // a session that begins with good contact needs no fresh-beat wait beyond
+  // the coherenceAltReady gate itself.
+  const [prevSignalOk, setPrevSignalOk] = useState(signalOk)
+  const [signalBackAt, setSignalBackAt] = useState(0)
+  if (signalOk !== prevSignalOk) {
+    setPrevSignalOk(signalOk)
+    if (signalOk) setSignalBackAt(Date.now())
+  }
+  const lastBeatAt = data.beats.length ? data.beats[data.beats.length - 1]!.t : 0
+  const hasFreshBeat = lastBeatAt > signalBackAt
+
+  const status: Page2Status = !connected
+    ? 'none'
+    : noContact
+    ? 'noContact'
+    : data.coherenceLiveAlt === null || !data.coherenceAltReady || !hasFreshBeat
+    ? 'measuring'
+    : getCoherenceZone(data.coherenceLiveAlt)
+  const zone = isZone(status) ? status : null
+
+  // Gated value: null whenever status isn't a real zone, so the local tally
+  // credits nothing while calibrating / contact lost / disconnected (its
+  // baseline still advances, so no lump-sum credit lands afterwards).
+  const { zones: localZones, reset } = useLocalZoneDominance(hasPlayed, data.elapsedSec, zone ? data.coherenceLiveAlt : null)
+
+  // Debounced (see useDebouncedStatus), then cross-faded over ZONE_FADE_MS:
+  // displayStatus only updates once stableStatus has already settled AND
+  // the current text has fully faded out, so the swap never happens
+  // mid-fade.
+  const stableStatus = useDebouncedStatus(status)
+  const [displayStatus, setDisplayStatus] = useState<Page2Status | null>(null)
   const [zoneTextVisible, setZoneTextVisible] = useState(true)
   useEffect(() => {
-    if (stableZone === displayZone) return
+    if (stableStatus === displayStatus) return
     setZoneTextVisible(false)
     const id = window.setTimeout(() => {
-      setDisplayZone(stableZone)
+      setDisplayStatus(stableStatus)
       setZoneTextVisible(true)
     }, ZONE_FADE_MS)
     return () => window.clearTimeout(id)
-  }, [stableZone, displayZone])
+  }, [stableStatus, displayStatus])
 
   // Cue-driven sphere timing (2026-10-02) — replaces data.phase/
   // data.phaseDurationMs (the shared useBreathingPacer, untouched) for this
@@ -153,18 +207,18 @@ export default function Page2Mandala({ data, isActive }: { data: LiveSessionData
   const labelRef = useRef<HTMLDivElement>(null)
   const [ringSize, setRingSize] = useState(RING_SIZE_FLOOR)
 
-  // Keyed on [hasPlayed, displayZone], NOT re-created on every render — an
+  // Keyed on [hasPlayed, displayStatus], NOT re-created on every render — an
   // earlier version re-ran this effect (and its ResizeObserver) on every
   // render with no dependency array, which hit a real "Maximum update depth
   // exceeded" crash: committing a new ringSize changes the DOM, the
   // observer fires again, the effect (which also reruns post-render)
-  // recomputes and commits again, forever. displayZone is included because
+  // recomputes and commits again, forever. displayStatus is included because
   // the feedback text's own line count (1 line for the short zones, 2 for
   // the longer "high" message) changes the label block's real height — the
   // ResizeObserver below watches `box`, not `labelRef`, and box's own
   // flex-1 size doesn't change just because a child's content height did,
   // so without this the ring could stay sized for whichever zone text
-  // happened to be showing when hasPlayed first flipped true. displayZone
+  // happened to be showing when hasPlayed first flipped true. displayStatus
   // only changes a few times a minute at most (it's already debounced+faded
   // above), nowhere near the render-every-tick case that caused the actual
   // infinite loop, so adding it here is safe. The epsilon-guarded setState
@@ -187,7 +241,7 @@ export default function Page2Mandala({ data, isActive }: { data: LiveSessionData
     const ro = new ResizeObserver(recompute)
     ro.observe(box)
     return () => ro.disconnect()
-  }, [hasPlayed, displayZone])
+  }, [hasPlayed, displayStatus])
 
   const sphereSize = Math.round(ringSize * RING_TO_SPHERE_RATIO)
 
@@ -225,6 +279,9 @@ export default function Page2Mandala({ data, isActive }: { data: LiveSessionData
                 smoothness={1}
                 color={zone ? ZONE_COLOR[zone] : undefined}
                 size={sphereSize}
+                // Only tick with a real, current bpm — never PulsingSphere's
+                // 60 bpm fallback (no device, contact lost, BLE dropped).
+                heartbeat={signalOk && data.bpm !== null}
               />
             </SegmentedRing>
           ) : (
@@ -234,14 +291,21 @@ export default function Page2Mandala({ data, isActive }: { data: LiveSessionData
 
         {hasPlayed && (
           <div ref={labelRef} className="flex flex-col items-center gap-2" style={{ marginTop: RING_LABEL_GAP }}>
-            {displayZone && (
+            {isZone(displayStatus) ? (
               <span
                 className="max-w-[260px] text-center text-base font-semibold transition-opacity"
-                style={{ opacity: zoneTextVisible ? 1 : 0, transitionDuration: `${ZONE_FADE_MS}ms`, color: ZONE_COLOR[displayZone] }}
+                style={{ opacity: zoneTextVisible ? 1 : 0, transitionDuration: `${ZONE_FADE_MS}ms`, color: ZONE_COLOR[displayStatus] }}
               >
-                {ZONE_FEEDBACK[displayZone]}
+                {ZONE_FEEDBACK[displayStatus]}
               </span>
-            )}
+            ) : displayStatus === 'measuring' || displayStatus === 'noContact' ? (
+              <span
+                className="max-w-[260px] text-center text-sm font-medium text-[var(--color-text-muted)] transition-opacity"
+                style={{ opacity: zoneTextVisible ? 1 : 0, transitionDuration: `${ZONE_FADE_MS}ms` }}
+              >
+                {STATUS_TEXT[displayStatus]}
+              </span>
+            ) : null}
             <button
               type="button"
               onClick={reset}
